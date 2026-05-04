@@ -601,6 +601,8 @@ export default function App() {
   const [elapsedTime, setElapsedTime] = useState(0); // ms
   const [distanceCovered, setDistanceCovered] = useState(0); // meters
   const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [gpsHz, setGpsHz] = useState(0);
+  const lastGpsTimestampRef = useRef<number | null>(null);
   const [splits, setSplits] = useState<Split[]>([]);
   const [history, setHistory] = useState<RaceRun[]>(() => {
     const saved = localStorage.getItem("race_history");
@@ -1025,6 +1027,16 @@ export default function App() {
         setAccuracy(accuracy);
         setGpsAltitude(altitude);
         setGpsHeading(heading);
+
+        // Calculate Hz
+        if (lastGpsTimestampRef.current) {
+          const diff = position.timestamp - lastGpsTimestampRef.current;
+          if (diff > 0) {
+            const hz = 1000 / diff;
+            setGpsHz(hz);
+          }
+        }
+        lastGpsTimestampRef.current = position.timestamp;
 
         // 2. Determine if Signal is "Locked" (Accuracy < 10m is standard, < 5m is pro)
         const locked = accuracy !== null && accuracy <= 10;
@@ -1644,17 +1656,9 @@ export default function App() {
                       </div>
                       <div className="text-[10px] font-black font-mono text-gray-400 italic flex items-center gap-2">
                         <span>
-                          {accuracy !== null
-                            ? Math.min(
-                                100,
-                                Math.round(
-                                  Math.max(0, 100 - (accuracy - 3) * 3.3),
-                                ),
-                              )
-                            : 0}
-                          %{" "}
+                          {gpsHz > 0 ? gpsHz.toFixed(1) : "0.0"} Hz{" "}
                           <span className="text-[8px] text-gray-600 uppercase font-bold not-italic ml-0.5">
-                            Reliability
+                            Update rate
                           </span>
                         </span>
                         <motion.button
