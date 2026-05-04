@@ -500,6 +500,7 @@ interface RaceRun {
   avgSpeed: number;
   peakG?: number;
   accuracy?: number;
+  avgHz?: number;
   splits: Split[];
   telemetry: { time: number; speed: number; accel: number }[];
 }
@@ -905,6 +906,7 @@ export default function App() {
   const sessionTelemetryRef = useRef<
     { time: number; speed: number; accel: number }[]
   >([]);
+  const sessionHzValuesRef = useRef<number[]>([]);
 
   // System Status monitor (Battery & Signal)
   useEffect(() => {
@@ -1034,6 +1036,9 @@ export default function App() {
           if (diff > 0) {
             const hz = 1000 / diff;
             setGpsHz(hz);
+            if (isActiveRef.current) {
+              sessionHzValuesRef.current.push(hz);
+            }
           }
         }
         lastGpsTimestampRef.current = position.timestamp;
@@ -1043,8 +1048,10 @@ export default function App() {
         setIsGpsLocked(locked);
 
         // --- SPEED UI UPDATES (Always update even if accuracy is poor) ---
-        const rawSpeedKmr = speed !== null && speed > 0 ? speed * 3.6 : 0;
-        setCurrentSpeed((prev) => rawSpeedKmr * 0.8 + prev * 0.2);
+        // Filter out speed below 0.4 m/s (~1.4 km/h) to prevent GPS drift while stationary
+        const filteredSpeed = speed !== null && speed > 0.4 ? speed : 0;
+        const rawSpeedKmr = filteredSpeed * 3.6;
+        setCurrentSpeed((prev) => rawSpeedKmr * 0.8 + (prev || 0) * 0.2);
         const speedKmr = rawSpeedKmr;
 
         setRealTimeSpeedData((prev) => {
@@ -1118,8 +1125,11 @@ export default function App() {
 
         if (isActiveRef.current && lastPointRef.current) {
           // 5. Distance Calculation filtering
-          // If accuracy is worse than current session max by a lot, skip distance increment to avoid "drifting"
-          if (accuracy > accuracyRef.current * 2 && accuracy > 15) return;
+          // Logic: Skip distance if accuracy is poor OR if speed is too low (prevents drifting while parked)
+          if (accuracy > 20 || speedKmr < 1.0) {
+            lastPointRef.current = currentPoint;
+            return;
+          }
 
           const dist = calculateDistance(lastPointRef.current, currentPoint);
 
@@ -1195,6 +1205,7 @@ export default function App() {
     setDistanceCovered(0);
     setSessionMaxAccuracy(null);
     sessionTelemetryRef.current = [];
+    sessionHzValuesRef.current = [];
     setSplits(
       selectedTargets.map((t) => ({
         ...t,
@@ -1220,6 +1231,12 @@ export default function App() {
         typeof finalTime === "number" ? finalTime : elapsedTime;
       const effectiveSplits = Array.isArray(finalSplits) ? finalSplits : splits;
 
+      const avgHz =
+        sessionHzValuesRef.current.length > 0
+          ? sessionHzValuesRef.current.reduce((a, b) => a + b, 0) /
+            sessionHzValuesRef.current.length
+          : gpsHz;
+
       const newRun: RaceRun = {
         id: Date.now().toString(),
         date: Date.now(),
@@ -1227,8 +1244,9 @@ export default function App() {
         totalTime: effectiveTime,
         maxSpeed: maxSpeedRef.current,
         avgSpeed: (effectiveDistance / (effectiveTime / 1000)) * 3.6,
-        peakG: peakGRef.current,
-        accuracy: sessionMaxAccuracy || accuracy || 0,
+        peakG: peakGRef.current || 0,
+        accuracy: accuracy || 0,
+        avgHz: avgHz || 0,
         splits: [...effectiveSplits],
         telemetry: [...sessionTelemetryRef.current],
       };
@@ -1252,7 +1270,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#111111] text-gray-100 font-sans selection:bg-violet-500/30 overflow-hidden">
+    <div className="min-h-screen bg-[#111111] text-gray-100 font-sans selection:bg-violet-500/30 overflow-x-hidden">
       <AnimatePresence>
         {!hasAgreedToSafety && isLoggedIn && (
           <motion.div
@@ -1305,7 +1323,7 @@ export default function App() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="relative z-10 max-w-lg mx-auto min-h-screen flex flex-col items-center justify-center p-6 touch-manipulation"
+            className="relative z-10 max-w-lg mx-auto min-h-screen flex flex-col items-center justify-center p-6 pt-safe pb-safe touch-manipulation"
           >
             <div className="w-full bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
@@ -1423,7 +1441,7 @@ export default function App() {
             key="app"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="relative z-10 max-w-lg mx-auto min-h-screen flex flex-col p-4 touch-manipulation"
+            className="relative z-10 max-w-lg mx-auto min-h-screen flex flex-col p-4 pt-safe pb-safe touch-manipulation"
           >
             {/* System Bar */}
             <div className="flex justify-end items-center gap-3 mb-2 px-1">
@@ -2077,15 +2095,12 @@ export default function App() {
                                 </div>
                                 <div className="bg-black/20 p-2 rounded-xl border border-gray-800/30">
                                   <div className="text-[8px] uppercase text-gray-500 mb-1">
-                                    ACCURACY
+                                    GPS RATE
                                   </div>
                                   <div className="text-sm font-black font-mono text-blue-400">
-                                    ±
-                                    {run.accuracy
-                                      ? run.accuracy.toFixed(1)
-                                      : "--.-"}
+                                    {run.avgHz ? run.avgHz.toFixed(1) : "0.0"}
                                     <span className="text-[10px] ml-0.5 opacity-30">
-                                      M
+                                      Hz
                                     </span>
                                   </div>
                                 </div>
@@ -2436,9 +2451,9 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="h-80 w-full relative">
+                    <div className="h-[400px] w-full relative">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart
+                        <AreaChart
                           margin={{ top: 20, right: 30, left: 10, bottom: 40 }}
                           data={(() => {
                             const selectedData = history.filter((r) =>
@@ -2446,210 +2461,192 @@ export default function App() {
                             );
                             if (selectedData.length === 0) return [];
 
-                            const maxTime = Math.max(
-                              ...selectedData.map((r) => r.totalTime / 1000),
-                            );
-                            const step = 0.2;
-                            const data = [];
+                            const timePointsMap = new Map<string, any>();
+                            
+                            selectedData.forEach((run) => {
+                              // Better fallback if telemetry is missing
+                              const telemetry = (run.telemetry && run.telemetry.length > 5) 
+                                ? run.telemetry 
+                                : Array.from({ length: 20 }, (_, i) => {
+                                    const t = (i / 19) * (run.totalTime / 1000);
+                                    // Simulated curve: 0 -> maxSpeed -> slightly down
+                                    const progress = i / 19;
+                                    const speed = run.maxSpeed * (1 - Math.pow(1 - progress, 2));
+                                    const accel = (run.peakG || 0) * (1 - progress);
+                                    return { time: t, speed, accel };
+                                  });
 
-                            const runBuckets = selectedData.map((run) => {
-                              const buckets: Record<
-                                string,
-                                { speed: number; accel: number }
-                              > = {};
-                              run.telemetry?.forEach((p) => {
-                                const b = (
-                                  Math.floor(p.time / step) * step
-                                ).toFixed(1);
-                                buckets[b] = { speed: p.speed, accel: p.accel };
+                              telemetry.forEach((p) => {
+                                const tStr = p.time.toFixed(1);
+                                if (!timePointsMap.has(tStr)) {
+                                  timePointsMap.set(tStr, { time: parseFloat(tStr) });
+                                }
+                                const point = timePointsMap.get(tStr);
+                                point[`speed_${run.id}`] = p.speed;
+                                point[`accel_${run.id}`] = p.accel * 10; // More pronounced accel
                               });
-                              return { id: run.id, buckets };
                             });
 
-                            for (let t = 0; t <= maxTime; t += step) {
-                              const tStr = t.toFixed(1);
-                              const point: any = { time: tStr };
-                              runBuckets.forEach((rb) => {
-                                const bucket = rb.buckets[tStr];
-                                if (bucket) {
-                                  point[`speed_${rb.id}`] = bucket.speed;
-                                  point[`accel_${rb.id}`] = bucket.accel * 5;
-                                }
-                              });
-                              data.push(point);
-                            }
-                            return data;
+                            return Array.from(timePointsMap.values()).sort(
+                              (a, b) => a.time - b.time,
+                            );
                           })()}
                         >
                           <defs>
-                            <filter
-                              id="neonRed"
-                              x="-20%"
-                              y="-20%"
-                              width="140%"
-                              height="140%"
-                            >
-                              <feGaussianBlur stdDeviation="2" result="blur" />
-                              <feComposite
-                                in="SourceGraphic"
-                                in2="blur"
-                                operator="over"
-                              />
+                            {history.filter(r => selectedRuns.includes(r.id)).map((run, idx) => {
+                              const colors = ["#ff0000", "#ff6600", "#ff00ff"];
+                              const color = colors[idx % colors.length];
+                              const cyanColors = ["#22d3ee", "#00ff88", "#88fbff"];
+                              const cyanColor = cyanColors[idx % cyanColors.length];
+                              // Use a safer ID for gradients (letters first)
+                              const runSafeId = run.id.replace(/[^a-zA-Z0-9]/g, '');
+                              return (
+                                <React.Fragment key={`defs_dyno_${run.id}`}>
+                                  <linearGradient id={`grad_speed_${runSafeId}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={color} stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor={color} stopOpacity={0.1}/>
+                                  </linearGradient>
+                                  <linearGradient id={`grad_accel_${runSafeId}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={cyanColor} stopOpacity={0.4}/>
+                                    <stop offset="95%" stopColor={cyanColor} stopOpacity={0}/>
+                                  </linearGradient>
+                                </React.Fragment>
+                              );
+                            })}
+                            <filter id="neonRed" x="-20%" y="-20%" width="140%" height="140%">
+                              <feGaussianBlur stdDeviation="3" result="blur" />
+                              <feComposite in="SourceGraphic" in2="blur" operator="over" />
                             </filter>
-                            <filter
-                              id="neonCyan"
-                              x="-20%"
-                              y="-20%"
-                              width="140%"
-                              height="140%"
-                            >
+                             <filter id="neonCyan" x="-20%" y="-20%" width="140%" height="140%">
                               <feGaussianBlur stdDeviation="2" result="blur" />
-                              <feComposite
-                                in="SourceGraphic"
-                                in2="blur"
-                                operator="over"
-                              />
+                              <feComposite in="SourceGraphic" in2="blur" operator="over" />
                             </filter>
                           </defs>
                           <CartesianGrid
-                            strokeDasharray="3 3"
+                            strokeDasharray="1 5"
                             stroke="#ffffff10"
                             vertical={true}
                           />
                           <XAxis
                             dataKey="time"
+                            type="number"
+                            domain={['dataMin', 'dataMax']}
                             stroke="#444"
                             fontSize={8}
                             tickLine={true}
                             axisLine={true}
                             tick={{ fill: "#666" }}
+                            minTickGap={20}
                             label={{
                               value: "ELAPSED TIME (S)",
                               position: "insideBottom",
                               offset: -10,
-                              fill: "#666",
+                              fill: "#444",
                               fontSize: 7,
                               fontWeight: "bold",
                             }}
                           />
                           <YAxis
                             yAxisId="left"
-                            stroke="#ff000080"
+                            stroke="#ff000040"
                             fontSize={10}
                             tickLine={false}
                             axisLine={false}
-                            domain={[0, "auto"]}
+                            domain={[0, (max: number) => Math.max(120, Math.ceil(max / 20) * 20 + 20)]}
                             tick={{
-                              fill: "#ff0000",
+                              fill: "#ff4444",
                               fontSize: 9,
                               fontWeight: "900",
                               fontStyle: "italic",
-                            }}
-                            label={{
-                              value: "SPEED (HP/KPH)",
-                              angle: -90,
-                              position: "insideLeft",
-                              fill: "#ff444460",
-                              fontSize: 8,
-                              fontWeight: "900",
                             }}
                           />
                           <YAxis
                             yAxisId="right"
                             orientation="right"
-                            stroke="#00ffff50"
+                            stroke="#22d3ee40"
                             fontSize={10}
                             tickLine={false}
                             axisLine={false}
-                            domain={[0, "auto"]}
+                            domain={[0, 20]}
                             tick={{
-                              fill: "#00ffff",
+                              fill: "#22d3ee",
                               fontSize: 9,
                               fontWeight: "900",
                               fontStyle: "italic",
                             }}
-                            label={{
-                              value: "ACCEL (TORQUE/G)",
-                              angle: 90,
-                              position: "insideRight",
-                              fill: "#22d3ee60",
-                              fontSize: 8,
-                              fontWeight: "900",
-                            }}
                           />
                           <Tooltip
                             contentStyle={{
-                              backgroundColor: "#000",
-                              border: "1px solid #333",
-                              borderRadius: "4px",
-                              padding: "10px",
+                              backgroundColor: "rgba(0,0,0,0.95)",
+                              border: "1px solid rgba(139,92,246,0.3)",
+                              borderRadius: "12px",
+                              padding: "12px",
+                              backdropFilter: "blur(10px)",
                             }}
                             labelStyle={{
                               color: "#fff",
                               fontSize: "10px",
                               fontWeight: "bold",
-                              marginBottom: "5px",
-                            }}
-                            itemStyle={{
-                              fontSize: "9px",
-                              fontWeight: "black",
-                              padding: "0px",
-                            }}
-                            cursor={{
-                              stroke: "#ffffff30",
-                              strokeDasharray: "5 5",
+                              marginBottom: "8px",
+                              fontFamily: "monospace",
                             }}
                             formatter={(val: any, name: string) => {
                               const isAccel = name.includes("accel");
-                              const runId = name.split("_")[1];
-                              const label = `RUN_${runId.slice(-4)} (${isAccel ? "G" : "KPH"})`;
-                              return [Math.round(val * 100) / 100, label];
+                              const runIdString = name.split("_")[1];
+                              const label = `RUN_${runIdString.slice(-4)} (${isAccel ? "G" : "KPH"})`;
+                              const displayVal = isAccel ? (val / 10).toFixed(2) : Math.round(val);
+                              return [displayVal, label];
                             }}
                           />
-                          {/* Splitting the map to ensure Recharts sees the components directly */}
                           {history
                             .filter((r) => selectedRuns.includes(r.id))
-                            .map((run, idx) => (
-                              <Line
-                                key={`speed_${run.id}`}
-                                yAxisId="left"
-                                type="monotone"
-                                dataKey={`speed_${run.id}`}
-                                stroke="#ff0000"
-                                strokeWidth={2}
-                                strokeOpacity={idx === 0 ? 1 : 0.4}
-                                dot={false}
-                                activeDot={{
-                                  r: 4,
-                                  stroke: "#fff",
-                                  strokeWidth: 2,
-                                }}
-                                animationDuration={500}
-                                connectNulls
-                                filter="url(#neonRed)"
-                              />
-                            ))}
+                            .map((run, idx) => {
+                              const colors = ["#ff0000", "#ff6600", "#ff00ff"];
+                              const color = colors[idx % colors.length];
+                              const runSafeId = run.id.replace(/[^a-zA-Z0-9]/g, '');
+                              return (
+                                <Area
+                                  key={`speed_${run.id}`}
+                                  yAxisId="left"
+                                  type="monotone"
+                                  dataKey={`speed_${run.id}`}
+                                  stroke={color}
+                                  fill={`url(#grad_speed_${runSafeId})`}
+                                  strokeWidth={5}
+                                  dot={false}
+                                  activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }}
+                                  animationDuration={idx * 200 + 1000}
+                                  connectNulls
+                                />
+                              );
+                            })}
                           {history
                             .filter((r) => selectedRuns.includes(r.id))
-                            .map((run, idx) => (
-                              <Line
-                                key={`accel_${run.id}`}
-                                yAxisId="right"
-                                type="monotone"
-                                dataKey={`accel_${run.id}`}
-                                stroke="#00ffff"
-                                strokeWidth={2}
-                                strokeOpacity={idx === 0 ? 1 : 0.4}
-                                dot={false}
-                                activeDot={false}
-                                animationDuration={800}
-                                connectNulls
-                                filter="url(#neonCyan)"
-                              />
-                            ))}
-                        </LineChart>
+                            .map((run, idx) => {
+                              const colors = ["#22d3ee", "#00ff88", "#88fbff"];
+                              const color = colors[idx % colors.length];
+                              const runSafeId = run.id.replace(/[^a-zA-Z0-9]/g, '');
+                              return (
+                                <Area
+                                  key={`accel_${run.id}`}
+                                  yAxisId="right"
+                                  type="monotone"
+                                  dataKey={`accel_${run.id}`}
+                                  stroke={color}
+                                  fill={`url(#grad_accel_${runSafeId})`}
+                                  strokeWidth={2}
+                                  strokeDasharray="4 2"
+                                  dot={false}
+                                  activeDot={false}
+                                  animationDuration={idx * 200 + 1500}
+                                  connectNulls
+                                />
+                              );
+                            })}
+                        </AreaChart>
                       </ResponsiveContainer>
                     </div>
+
 
                     {selectedRuns.length === 0 && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10">
