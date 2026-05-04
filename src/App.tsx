@@ -3,25 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { 
-  Trophy, 
-  History as HistoryIcon, 
-  Settings, 
-  Play, 
-  CircleStop, 
-  Gauge, 
-  Timer, 
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import {
+  Trophy,
+  History as HistoryIcon,
+  Settings,
+  Play,
+  CircleStop,
+  Gauge,
+  Timer,
   MapPin,
   ChevronRight,
+  ChevronDown,
   Trash2,
   Plus,
   Info,
   Flag,
   Crosshair,
-  Cpu,
-  Bluetooth,
-  BluetoothOff,
   Battery,
   BatteryLow,
   BatteryMedium,
@@ -29,22 +27,36 @@ import {
   Signal,
   Wifi,
   TrendingUp,
-  Activity
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+  Activity,
+  AlertTriangle,
+  LogOut,
+  UserPlus,
+  Shield,
+  User as UserIcon,
+  X,
+  CheckSquare,
+  Square,
+  LayoutGrid,
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   AreaChart,
   Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer
-} from 'recharts';
+  ResponsiveContainer,
+  ReferenceDot,
+  Label,
+  Legend,
+} from "recharts";
 
 // --- Types ---
 
-type Language = 'id' | 'en' | 'th' | 'vi' | 'ms';
+type Language = "id" | "en" | "th" | "vi" | "ms";
 
 interface Translations {
   welcome: string;
@@ -84,265 +96,393 @@ interface Translations {
   gpsAccuracyLabel: string;
   charts: string;
   calibrate: string;
-  obdScanner: string;
-  connectOBD: string;
-  disconnectOBD: string;
-  obdStatus: string;
-  rpm: string;
-  coolant: string;
-  engineLoad: string;
-  throttle: string;
-  connectionError: string;
-  obdInfo: string;
+  warningTitle: string;
+  warningMessage: string;
+  next: string;
+  waitingSignal: string;
+  signalReady: string;
+  poorSignal: string;
+  login: string;
+  username: string;
+  password: string;
+  signIn: string;
+  signOut: string;
+  adminPanel: string;
+  createAccount: string;
+  userList: string;
+  invalidCredentials: string;
+  nameRequired: string;
+  passRequired: string;
+  userCreated: string;
+  deleteUser: string;
+  deviceAlreadyBound: string;
+  resetDevice: string;
+  deviceBound: string;
+  notBound: string;
+  rememberMe: string;
+  safetyNotice: string;
+  disclaimer: string;
+  iAgree: string;
 }
 
 const TRANSLATIONS: Record<Language, Translations> = {
   id: {
-    welcome: 'SELAMAT DATANG',
-    elitePerformance: 'Meter Performa PRO+',
-    precisionGPS: 'lihat dan catat performa kendaraan mu dengan aplikasi DRAG RACE L.A PRO+',
-    enterTrack: 'MASUK KE TRACK',
-    dashboard: 'Dasbor',
-    history: 'Histori',
-    settings: 'Pengaturan',
-    currentSpeed: 'Kecepatan Saat Ini',
-    maxSpeed: 'Kecepatan Maks',
-    accuracy: 'Akurasi',
-    elapsedTime: 'Waktu Berjalan',
-    distance: 'Jarak',
-    splitsTargets: 'Splits & Target',
-    recording: 'Merekam',
-    startTest: 'MULAI TES PERFORMA',
-    stopSave: 'BERHENTI & SIMPAN SESI',
-    movementDetected: 'Tes dimulai otomatis saat gerakan terdeteksi (>1 km/jam). Jaga ponsel tetap stabil untuk GPS yang akurat.',
-    pastSessions: 'Sesi Sebelumnya',
-    deleteAll: 'Hapus Semua',
-    noHistory: 'Belum ada data histori.',
-    takeFirstTest: 'Ambil tes pertama kamu di Dashboard.',
-    details: 'Detail Splits',
-    config: 'Konfigurasi Jarak',
-    templates: 'Templat Standar',
-    reset: 'Reset ke Standar',
-    myTargets: 'Target Saya',
-    addTarget: 'Tambah Target Jarak',
-    gpsInfo: 'GPS INFO',
-    language: 'Bahasa',
-    deleteConfirm: 'Hapus semua histori?',
-    dailyBest: 'WAKTU TERBAIK',
-    gForce: 'Tekanan G',
-    altitude: 'Ketinggian',
-    heading: 'Arah',
-    gpsAccuracyLabel: 'Akurasi GPS',
-    charts: 'Grafik',
-    calibrate: 'Kalibrasi',
-    obdScanner: 'OBD2 Scanner',
-    connectOBD: 'Sambungkan OBD2',
-    disconnectOBD: 'Putuskan',
-    obdStatus: 'Status OBD',
-    rpm: 'RPM Mesin',
-    coolant: 'Suhu Pendingin',
-    engineLoad: 'Beban Mesin',
-    throttle: 'Posisi Throttle',
-    connectionError: 'Gagal Menyambung',
-    obdInfo: 'Sambungkan ke adaptor OBD2 BLE untuk melihat detail mesin real-time.'
+    welcome: "SELAMAT DATANG",
+    elitePerformance: "Meter Performa PRO+",
+    precisionGPS:
+      "lihat dan catat performa kendaraan mu dengan aplikasi DRAG RACE L.A PRO+",
+    enterTrack: "MASUK KE TRACK",
+    dashboard: "Dasbor",
+    history: "Histori",
+    settings: "Pengaturan",
+    currentSpeed: "Kecepatan Saat Ini",
+    maxSpeed: "Kecepatan Maks",
+    accuracy: "Akurasi",
+    elapsedTime: "Waktu Berjalan",
+    distance: "Jarak",
+    splitsTargets: "Splits & Target",
+    recording: "Merekam",
+    startTest: "MULAI TES PERFORMA",
+    stopSave: "BERHENTI & SIMPAN SESI",
+    movementDetected:
+      "Tes dimulai otomatis saat gerakan terdeteksi (>1 km/jam). Jaga ponsel tetap stabil untuk GPS yang akurat.",
+    pastSessions: "Sesi Sebelumnya",
+    deleteAll: "Hapus Semua",
+    noHistory: "Belum ada data histori.",
+    takeFirstTest: "Ambil tes pertama kamu di Dashboard.",
+    details: "Detail Splits",
+    config: "Konfigurasi Jarak",
+    templates: "Templat Standar",
+    reset: "Reset ke Standar",
+    myTargets: "Target Saya",
+    addTarget: "Tambah Target Jarak",
+    gpsInfo: "GPS INFO",
+    language: "Bahasa",
+    deleteConfirm: "Hapus semua histori?",
+    dailyBest: "WAKTU TERBAIK",
+    gForce: "Tekanan G",
+    altitude: "Ketinggian",
+    heading: "Arah",
+    gpsAccuracyLabel: "Akurasi GPS",
+    charts: "Grafik",
+    calibrate: "Kalibrasi",
+    warningTitle: "PERHATIAN",
+    warningMessage:
+      "Gunakan DRAG RACE pada saat cerah tidak tertutup awan. Rekomendasi pada saat malam hari agar sinyal GPS lebih stabil.",
+    safetyNotice: "PEMBERITAHUAN KESELAMATAN",
+    disclaimer: "Aplikasi ini dirancang untuk penggunaan di lintasan tertutup. Jangan gunakan di jalan umum. Penggunaan di jalan raya dapat membahayakan diri sendiri dan orang lain. Data bergantung pada akurasi GPS perangkat Anda.",
+    iAgree: "SAYA MENGERTI & SETUJU",
+    next: "Lanjutkan",
+    waitingSignal: "Menunggu Sinyal Akurat...",
+    signalReady: "Sinyal Terkunci (Akurat)",
+    poorSignal: "Sinyal Lemah",
+    login: "Masuk",
+    username: "Nama Pengguna",
+    password: "Kata Sandi",
+    signIn: "MASUK SEKARANG",
+    signOut: "Keluar",
+    adminPanel: "Panel Admin",
+    createAccount: "Buat Akun",
+    userList: "Daftar Pengguna",
+    invalidCredentials: "Nama atau Password salah!",
+    nameRequired: "Nama harus diisi",
+    passRequired: "Password minimal 4 karakter",
+    userCreated: "Akun berhasil dibuat!",
+    deleteUser: "Hapus Akun ini?",
+    deviceAlreadyBound: "Akun ini sudah terkait dengan perangkat lain!",
+    resetDevice: "Reset Perangkat",
+    deviceBound: "Terkait",
+    notBound: "Belum Terkait",
+    rememberMe: "Ingat Saya",
   },
   en: {
-    welcome: 'WELCOME',
-    elitePerformance: 'PRO+ Performance Meter',
-    precisionGPS: 'view and record your vehicle performance with DRAG RACE L.A PRO+ app',
-    enterTrack: 'ENTER TRACK',
-    dashboard: 'Dashboard',
-    history: 'History',
-    settings: 'Settings',
-    currentSpeed: 'Current Speed',
-    maxSpeed: 'Max Speed',
-    accuracy: 'Accuracy',
-    elapsedTime: 'Elapsed Time',
-    distance: 'Distance',
-    splitsTargets: 'Splits & Targets',
-    recording: 'Recording',
-    startTest: 'START PERFORMANCE TEST',
-    stopSave: 'STOP & SAVE SESSION',
-    movementDetected: 'Test begins automatically when movement is detected (>1 km/h). Keep phone steady for accurate GPS.',
-    pastSessions: 'Past Sessions',
-    deleteAll: 'Delete All',
-    noHistory: 'No history data yet.',
-    takeFirstTest: 'Take your first test in the Dashboard.',
-    details: 'Split Details',
-    config: 'Distance Configuration',
-    templates: 'Default Templates',
-    reset: 'Reset to Defaults',
-    myTargets: 'My Targets',
-    addTarget: 'Add Target Distance',
-    gpsInfo: 'GPS INFO',
-    language: 'Language',
-    deleteConfirm: 'Delete all history?',
-    dailyBest: 'DAILY BEST',
-    gForce: 'G-Force',
-    altitude: 'Altitude',
-    heading: 'Heading',
-    gpsAccuracyLabel: 'GPS Accuracy',
-    charts: 'Charts',
-    calibrate: 'Calibrate',
-    obdScanner: 'OBD2 Scanner',
-    connectOBD: 'Connect OBD2',
-    disconnectOBD: 'Disconnect',
-    obdStatus: 'OBD Status',
-    rpm: 'Engine RPM',
-    coolant: 'Coolant Temp',
-    engineLoad: 'Engine Load',
-    throttle: 'Throttle Position',
-    connectionError: 'Connection Error',
-    obdInfo: 'Connect to a BLE OBD2 adapter to see real-time engine details.'
+    welcome: "WELCOME",
+    elitePerformance: "PRO+ Performance Meter",
+    precisionGPS:
+      "view and record your vehicle performance with DRAG RACE L.A PRO+ app",
+    enterTrack: "ENTER TRACK",
+    dashboard: "Dashboard",
+    history: "History",
+    settings: "Settings",
+    currentSpeed: "Current Speed",
+    maxSpeed: "Max Speed",
+    accuracy: "Accuracy",
+    elapsedTime: "Elapsed Time",
+    distance: "Distance",
+    splitsTargets: "Splits & Targets",
+    recording: "Recording",
+    startTest: "START PERFORMANCE TEST",
+    stopSave: "STOP & SAVE SESSION",
+    movementDetected:
+      "Test begins automatically when movement is detected (>1 km/h). Keep phone steady for accurate GPS.",
+    pastSessions: "Past Sessions",
+    deleteAll: "Delete All",
+    noHistory: "No history data yet.",
+    takeFirstTest: "Take your first test in the Dashboard.",
+    details: "Split Details",
+    config: "Distance Configuration",
+    templates: "Default Templates",
+    reset: "Reset to Defaults",
+    myTargets: "My Targets",
+    addTarget: "Add Target Distance",
+    gpsInfo: "GPS INFO",
+    language: "Language",
+    deleteConfirm: "Delete all history?",
+    dailyBest: "DAILY BEST",
+    gForce: "G-Force",
+    altitude: "Altitude",
+    heading: "Heading",
+    gpsAccuracyLabel: "GPS Accuracy",
+    charts: "Charts",
+    calibrate: "Calibrate",
+    warningTitle: "ATTENTION",
+    warningMessage:
+      "Use DRAG RACE when it is clear and not cloudy, recommended at night",
+    next: "Next",
+    waitingSignal: "Waiting for Precise Signal...",
+    signalReady: "GPS Locked (Precise)",
+    poorSignal: "Poor GPS Signal",
+    login: "Login",
+    username: "Username",
+    password: "Password",
+    signIn: "SIGN IN NOW",
+    signOut: "Sign Out",
+    adminPanel: "Admin Panel",
+    createAccount: "Create Account",
+    userList: "User List",
+    invalidCredentials: "Invalid Name or Password!",
+    nameRequired: "Name is required",
+    passRequired: "Password min 4 characters",
+    userCreated: "Account created successfully!",
+    deleteUser: "Delete this account?",
+    deviceAlreadyBound: "This account is already bound to another device!",
+    resetDevice: "Reset Device",
+    deviceBound: "Bound",
+    notBound: "Not Bound",
+    rememberMe: "Remember Me",
+    safetyNotice: "SAFETY NOTICE",
+    disclaimer:
+      "This app is designed for closed-course use only. Do not use on public roads. High-speed testing is dangerous to yourself and others. Data depends on GPS accuracy.",
+    iAgree: "I UNDERSTAND & AGREE",
   },
   th: {
-    welcome: 'ยินดีต้อนรับ',
-    elitePerformance: 'PRO+ Performance Meter',
-    precisionGPS: 'ดูและบันทึกสมรรถนะรถของคุณด้วยแอป DRAG RACE L.A PRO+',
-    enterTrack: 'เข้าสู่สนาม',
-    dashboard: 'แดชบอร์ด',
-    history: 'ประวัติ',
-    settings: 'การตั้งค่า',
-    currentSpeed: 'ความเร็วปัจจุบัน',
-    maxSpeed: 'ความเร็วสูงสุด',
-    accuracy: 'ความแม่นยำ',
-    elapsedTime: 'เวลาที่ใช้ไป',
-    distance: 'ระยะทาง',
-    splitsTargets: 'ช่วงเวลาและเป้าหมาย',
-    recording: 'กำลังบันทึก',
-    startTest: 'เริ่มการทดสอบสมรรถนะ',
-    stopSave: 'หยุดและบันทึกเซสชัน',
-    movementDetected: 'การทดสอบเริ่มโดยอัตโนมัติเมื่อตรวจพบการเคลื่อนไหว (>1 กม./ชม.) วางโทรศัพท์ให้มั่นคงเพื่อ GPS ที่แม่นยำ',
-    pastSessions: 'เซสชันที่ผ่านมา',
-    deleteAll: 'ลบทั้งหมด',
-    noHistory: 'ยังไม่มีข้อมูลประวัติ',
-    takeFirstTest: 'เริ่มการทดสอบครั้งแรกของคุณที่แดชบอร์ด',
-    details: 'รายละเอียดช่วงเวลา',
-    config: 'การกำหนดค่าระยะทาง',
-    templates: 'เทมเพลตเริ่มต้น',
-    reset: 'รีเซ็ตเป็นค่าเริ่มต้น',
-    myTargets: 'เป้าหมายของฉัน',
-    addTarget: 'เพิ่มระยะทางเป้าหมาย',
-    gpsInfo: 'ข้อมูล GPS',
-    language: 'ภาษา',
-    deleteConfirm: 'ลบประวัติทั้งหมดหรือไม่?',
-    dailyBest: 'เวลาที่ดีที่สุด',
-    gForce: 'แรงจี',
-    altitude: 'ระดับความสูง',
-    heading: 'ทิศทาง',
-    gpsAccuracyLabel: 'ความแม่นยำ GPS',
-    charts: 'กราฟ',
-    calibrate: 'คาลิเบรต',
-    obdScanner: 'OBD2 สแกนเนอร์',
-    connectOBD: 'เชื่อมต่อ OBD2',
-    disconnectOBD: 'ตัดการเชื่อมต่อ',
-    obdStatus: 'สถานะ OBD',
-    rpm: 'รอบเครื่องยนต์',
-    coolant: 'อุณหภูมิน้ำหล่อเย็น',
-    engineLoad: 'ภาระเครื่องยนต์',
-    throttle: 'ตำแหน่งลิ้นปีกผีเสื้อ',
-    connectionError: 'การเชื่อมต่อผิดพลาด',
-    obdInfo: 'เชื่อมต่อกับอะแดปเตอร์ OBD2 BLE เพื่อดูรายละเอียดเครื่องยนต์แบบเรียลไทม์'
+    welcome: "ยินดีต้อนรับ",
+    elitePerformance: "PRO+ Performance Meter",
+    precisionGPS: "ดูและบันทึกสมรรถนะรถของคุณด้วยแอป DRAG RACE L.A PRO+",
+    enterTrack: "เข้าสู่สนาม",
+    dashboard: "แดชบอร์ด",
+    history: "ประวัติ",
+    settings: "การตั้งค่า",
+    currentSpeed: "ความเร็วปัจจุบัน",
+    maxSpeed: "ความเร็วสูงสุด",
+    accuracy: "ความแม่นยำ",
+    elapsedTime: "เวลาที่ใช้ไป",
+    distance: "ระยะทาง",
+    splitsTargets: "ช่วงเวลาและเป้าหมาย",
+    recording: "กำลังบันทึก",
+    startTest: "เริ่มการทดสอบสมรรถนะ",
+    stopSave: "หยุดและบันทึกเซสชัน",
+    movementDetected:
+      "การทดสอบเริ่มโดยอัตโนมัติเมื่อตรวจพบการเคลื่อนไหว (>1 กม./ชม.) วางโทรศัพท์ให้มั่นคงเพื่อ GPS ที่แม่นยำ",
+    pastSessions: "เซสชันที่ผ่านมา",
+    deleteAll: "ลบทั้งหมด",
+    noHistory: "ยังไม่มีข้อมูลประวัติ",
+    takeFirstTest: "เริ่มการทดสอบครั้งแรกของคุณที่แดชบอร์ด",
+    details: "รายละเอียดช่วงเวลา",
+    config: "การกำหนดค่าระยะทาง",
+    templates: "เทมเพลตเริ่มต้น",
+    reset: "รีเซ็ตเป็นค่าเริ่มต้น",
+    myTargets: "เป้าหมายของฉัน",
+    addTarget: "เพิ่มระยะทางเป้าหมาย",
+    gpsInfo: "ข้อมูล GPS",
+    language: "ภาษา",
+    deleteConfirm: "ลบประวัติทั้งหมดหรือไม่?",
+    dailyBest: "เวลาที่ดีที่สุด",
+    gForce: "แรงจี",
+    altitude: "ระดับความสูง",
+    heading: "ทิศทาง",
+    gpsAccuracyLabel: "ความแม่นยำ GPS",
+    charts: "กราฟ",
+    calibrate: "คาลิเบรต",
+    warningTitle: "คำเตือน",
+    warningMessage:
+      "ใช้ DRAG RACE เมื่ออากาศแจ่มใสและไม่มีเมฆมาก แนะนำให้ใช้ในตอนกลางคืน",
+    next: "ถัดไป",
+    waitingSignal: "รอสัญญาณที่แม่นยำ...",
+    signalReady: "ล็อค GPS แล้ว (แม่นยำ)",
+    poorSignal: "สัญญาณ GPS อ่อน",
+    login: "เข้าสู่ระบบ",
+    username: "ชื่อผู้ใช้",
+    password: "รหัสผ่าน",
+    signIn: "เข้าสู่ระบบตอนนี้",
+    signOut: "ออกจากระบบ",
+    adminPanel: "แผงควบคุมแอดมิน",
+    createAccount: "สร้างบัญชี",
+    userList: "รายชื่อผู้ใช้",
+    invalidCredentials: "ชื่อหรือรหัสผ่านไม่ถูกต้อง!",
+    nameRequired: "ต้องระบุชื่อ",
+    passRequired: "รหัสผ่านอย่างน้อย 4 ตัวอักษร",
+    userCreated: "สร้างบัญชีสำเร็จ!",
+    deleteUser: "ลบบัญชีนี้?",
+    deviceAlreadyBound: "บัญชีนี้ถูกผูกไว้กับอุปกรณ์อื่นแล้ว!",
+    resetDevice: "รีเซ็ตอุปกรณ์",
+    deviceBound: "ผูกแล้ว",
+    notBound: "ยังไม่ผูก",
+    rememberMe: "จำฉันไว้",
+    safetyNotice: "ประกาศเพื่อความปลอดภัย",
+    disclaimer:
+      "แอปนี้ออกแบบมาเพื่อใช้งานในสนามปิดเท่านั้น ห้ามใช้บนถนนสาธารณะ การทดสอบความเร็วสูงเป็นอันตรายต่อตัวคุณเองและผู้อื่น ข้อมูลขึ้นอยู่กับความแม่นยำของ GPS",
+    iAgree: "ฉันเข้าใจและยอมรับ",
   },
   vi: {
-    welcome: 'CHÀO MỪNG',
-    elitePerformance: 'Máy Đo Hiệu Suất PRO+',
-    precisionGPS: 'xem và ghi lại hiệu suất xe của bạn với ứng dụng DRAG RACE L.A PRO+',
-    enterTrack: 'VÀO ĐƯỜNG ĐUA',
-    dashboard: 'Bảng Điều Khiển',
-    history: 'Lịch Sử',
-    settings: 'Cài Đặt',
-    currentSpeed: 'Tốc Độ Hiện Tại',
-    maxSpeed: 'Tốc Độ Tối Đa',
-    accuracy: 'Độ Chính Xác',
-    elapsedTime: 'Thời Gian Trôi Qua',
-    distance: 'Khoảng Cách',
-    splitsTargets: 'Phân Đoạn & Mục Tiêu',
-    recording: 'Đang Ghi',
-    startTest: 'BẮT ĐẦU KIỂM TRA HIỆU SUẤT',
-    stopSave: 'DỪNG & LƯU PHIÊN',
-    movementDetected: 'Kiểm tra tự động bắt đầu khi phát hiện chuyển động (>1 km/h). Giữ điện thoại ổn định để GPS chính xác.',
-    pastSessions: 'Các Phiên Trước',
-    deleteAll: 'Xóa Tất Cả',
-    noHistory: 'Chưa có dữ liệu lịch sử.',
-    takeFirstTest: 'Thực hiện bài kiểm tra đầu tiên của bạn tại Bảng điều khiển.',
-    details: 'Chi Tiết Phân Đoạn',
-    config: 'Cấu Hình Khoảng Cách',
-    templates: 'Mẫu Mặc Định',
-    reset: 'Đặt Lại Mặc Định',
-    myTargets: 'Mục Tiêu Của Tôi',
-    addTarget: 'Thêm Khoảng Cách Mục Tiêu',
-    gpsInfo: 'THÔNG TIN GPS',
-    language: 'Ngôn Ngữ',
-    deleteConfirm: 'Xóa tất cả lịch sử?',
-    dailyBest: 'KỶ LỤC NGÀY',
-    gForce: 'Lực G',
-    altitude: 'Độ Cao',
-    heading: 'Hướng',
-    gpsAccuracyLabel: 'Độ chính xác GPS',
-    charts: 'Biểu đồ',
-    calibrate: 'Hiệu Chỉnh',
-    obdScanner: 'Máy Quét OBD2',
-    connectOBD: 'Kết Nối OBD2',
-    disconnectOBD: 'Ngắt Kết Nối',
-    obdStatus: 'Trạng Thái OBD',
-    rpm: 'Vòng Tua Máy',
-    coolant: 'Nhiệt Độ Nước Làm Mát',
-    engineLoad: 'Tải Động Cơ',
-    throttle: 'Vị Trí Bướm Ga',
-    connectionError: 'Lỗi Kết Nối',
-    obdInfo: 'Kết nối với bộ điều hợp OBD2 BLE để xem chi tiết động cơ theo thời gian thực.'
+    welcome: "CHÀO MỪNG",
+    elitePerformance: "Máy Đo Hiệu Suất PRO+",
+    precisionGPS:
+      "xem và ghi lại hiệu suất xe của bạn với ứng dụng DRAG RACE L.A PRO+",
+    enterTrack: "VÀO ĐƯỜNG ĐUA",
+    dashboard: "Bảng Điều Khiển",
+    history: "Lịch Sử",
+    settings: "Cài Đặt",
+    currentSpeed: "Tốc Độ Hiện Tại",
+    maxSpeed: "Tốc Độ Tối Đa",
+    accuracy: "Độ Chính Xác",
+    elapsedTime: "Thời Gian Trôi Qua",
+    distance: "Khoảng Cách",
+    splitsTargets: "Phân Đoạn & Mục Tiêu",
+    recording: "Đang Ghi",
+    startTest: "BẮT ĐẦU KIỂM TRA HIỆU SUẤT",
+    stopSave: "DỪNG & LƯU PHIÊN",
+    movementDetected:
+      "Kiểm tra tự động bắt đầu khi phát hiện chuyển động (>1 km/h). Giữ điện thoại ổn định để GPS chính xác.",
+    pastSessions: "Các Phiên Trước",
+    deleteAll: "Xóa Tất Cả",
+    noHistory: "Chưa có dữ liệu lịch sử.",
+    takeFirstTest:
+      "Thực hiện bài kiểm tra đầu tiên của bạn tại Bảng điều khiển.",
+    details: "Chi Tiết Phân Đoạn",
+    config: "Cấu Hình Khoảng Cách",
+    templates: "Mẫu Mặc Định",
+    reset: "Đặt Lại Mặc Định",
+    myTargets: "Mục Tiêu Của Tôi",
+    addTarget: "Thêm Khoảng Cách Mục Tiêu",
+    gpsInfo: "THÔNG TIN GPS",
+    language: "Ngôn Ngữ",
+    deleteConfirm: "Xóa tất cả lịch sử?",
+    dailyBest: "KỶ LỤC NGÀY",
+    gForce: "Lực G",
+    altitude: "Độ Cao",
+    heading: "Hướng",
+    gpsAccuracyLabel: "Độ chính xác GPS",
+    charts: "Biểu đồ",
+    calibrate: "Hiệu Chỉnh",
+    warningTitle: "CHÚ Ý",
+    warningMessage:
+      "Sử dụng DRAG RACE khi trời quang đãng và không có mây, khuyên dùng vào ban đêm",
+    next: "Tiếp theo",
+    waitingSignal: "Đang đợi tín hiệu chính xác...",
+    signalReady: "Đã khóa GPS (Chính xác)",
+    poorSignal: "Tín hiệu GPS yếu",
+    login: "Đăng nhập",
+    username: "Tên đăng nhập",
+    password: "Mật khẩu",
+    signIn: "ĐĂNG NHẬP NGAY",
+    signOut: "Đăng xuất",
+    adminPanel: "Bảng quản trị",
+    createAccount: "Tạo tài khoản",
+    userList: "Danh sách người dùng",
+    invalidCredentials: "Tên hoặc Mật khẩu không đúng!",
+    nameRequired: "Yêu cầu nhập tên",
+    passRequired: "Mật khẩu tối thiểu 4 ký tự",
+    userCreated: "Tạo tài khoản thành công!",
+    deleteUser: "Xóa tài khoản này?",
+    deviceAlreadyBound: "Tài khoản này đã được liên kết với một thiết bị khác!",
+    resetDevice: "Đặt lại thiết bị",
+    deviceBound: "Đã liên kết",
+    notBound: "Chưa liên kết",
+    rememberMe: "Ghi nhớ đăng nhập",
+    safetyNotice: "THÔNG BÁO AN TOÀN",
+    disclaimer:
+      "Ứng dụng này chỉ dành cho sử dụng trong đường đua khép kín. Không sử dụng trên đường công cộng. Kiểm tra tốc độ cao có hại cho bản thân và người khác. Dữ liệu phụ thuộc vào độ chính xác GPS.",
+    iAgree: "TÔI HIỂU & ĐỒNG Ý",
   },
   ms: {
-    welcome: 'SELAMAT DATANG',
-    elitePerformance: 'Meter Prestasi PRO+',
-    precisionGPS: 'lihat dan rakam prestasi kenderaan anda dengan aplikasi DRAG RACE L.A PRO+',
-    enterTrack: 'MASUK KE TREK',
-    dashboard: 'Papan Pemuka',
-    history: 'Sejarah',
-    settings: 'Tetapan',
-    currentSpeed: 'Kelajuan Semasa',
-    maxSpeed: 'Kelajuan Maks',
-    accuracy: 'Ketepatan',
-    elapsedTime: 'Masa Berlalu',
-    distance: 'Jarak',
-    splitsTargets: 'Pecahan & Sasaran',
-    recording: 'Merakam',
-    startTest: 'MULA UJIAN PRESTASI',
-    stopSave: 'BERHENTI & SIMPAN SESI',
-    movementDetected: 'Ujian bermula secara automatik apabila gerakan dikesan (>1 km/j). Pastikan telefon stabil untuk GPS yang tepat.',
-    pastSessions: 'Sesi Lepas',
-    deleteAll: 'Padam Semua',
-    noHistory: 'Tiada data sejarah lagi.',
-    takeFirstTest: 'Ambil ujian pertama anda di Papan Pemuka.',
-    details: 'Butiran Pecahan',
-    config: 'Konfigurasi Jarak',
-    templates: 'Templat Lalai',
-    reset: 'Set Semula ke Lalai',
-    myTargets: 'Sasaran Saya',
-    addTarget: 'Tambah Jarak Sasaran',
-    gpsInfo: 'INFO GPS',
-    language: 'Bahasa',
-    deleteConfirm: 'Padam semua sejarah?',
-    dailyBest: 'MASA TERBAIK',
-    gForce: 'Daya G',
-    altitude: 'Altitud',
-    heading: 'Arah',
-    gpsAccuracyLabel: 'Ketepatan GPS',
-    charts: 'Carta',
-    calibrate: 'Kalibrasi',
-    obdScanner: 'Pengimbas OBD2',
-    connectOBD: 'Sambung OBD2',
-    disconnectOBD: 'Putuskan',
-    obdStatus: 'Status OBD',
-    rpm: 'RPM Enjin',
-    coolant: 'Suhu Penyejuk',
-    engineLoad: 'Beban Enjin',
-    throttle: 'Kedudukan Throttle',
-    connectionError: 'Ralat Sambungan',
-    obdInfo: 'Sambung ke penyesuai OBD2 BLE untuk melihat butiran enjin masa nyata.'
-  }
+    welcome: "SELAMAT DATANG",
+    elitePerformance: "Meter Prestasi PRO+",
+    precisionGPS:
+      "lihat dan rakam prestasi kenderaan anda dengan aplikasi DRAG RACE L.A PRO+",
+    enterTrack: "MASUK KE TREK",
+    dashboard: "Papan Pemuka",
+    history: "Sejarah",
+    settings: "Tetapan",
+    currentSpeed: "Kelajuan Semasa",
+    maxSpeed: "Kelajuan Maks",
+    accuracy: "Ketepatan",
+    elapsedTime: "Masa Berlalu",
+    distance: "Jarak",
+    splitsTargets: "Pecahan & Sasaran",
+    recording: "Merakam",
+    startTest: "MULA UJIAN PRESTASI",
+    stopSave: "BERHENTI & SIMPAN SESI",
+    movementDetected:
+      "Ujian bermula secara automatik apabila gerakan dikesan (>1 km/j). Pastikan telefon stabil untuk GPS yang tepat.",
+    pastSessions: "Sesi Lepas",
+    deleteAll: "Padam Semua",
+    noHistory: "Tiada data sejarah lagi.",
+    takeFirstTest: "Ambil ujian pertama anda di Papan Pemuka.",
+    details: "Butiran Pecahan",
+    config: "Konfigurasi Jarak",
+    templates: "Templat Lalai",
+    reset: "Set Semula ke Lalai",
+    myTargets: "Sasaran Saya",
+    addTarget: "Tambah Jarak Sasaran",
+    gpsInfo: "INFO GPS",
+    language: "Bahasa",
+    deleteConfirm: "Padam semua sejarah?",
+    dailyBest: "MASA TERBAIK",
+    gForce: "Daya G",
+    altitude: "Altitud",
+    heading: "Arah",
+    gpsAccuracyLabel: "Ketepatan GPS",
+    charts: "Carta",
+    calibrate: "Kalibrasi",
+    warningTitle: "PERHATIAN",
+    warningMessage:
+      "Gunakan DRAG RACE semasa cuaca cerah tidak dilindung awan, disyorkan pada waktu malam",
+    next: "Seterusnya",
+    waitingSignal: "Menunggu Isyarat Tepat...",
+    signalReady: "GPS Dikunci (Tepat)",
+    poorSignal: "Isyarat GPS Lemah",
+    login: "Log Masuk",
+    username: "Nama Pengguna",
+    password: "Kata Laluan",
+    signIn: "LOG MASUK SEKARANG",
+    signOut: "Log Keluar",
+    adminPanel: "Panel Admin",
+    createAccount: "Buat Akaun",
+    userList: "Senarai Pengguna",
+    invalidCredentials: "Nama atau Kata Laluan salah!",
+    nameRequired: "Nama diperlukan",
+    passRequired: "Kata Laluan min 4 aksara",
+    userCreated: "Akaun berjaya dibuat!",
+    deleteUser: "Padam akaun ini?",
+    deviceAlreadyBound: "Akaun ini sudah terikat pada peranti lain!",
+    resetDevice: "Set Semula Peranti",
+    deviceBound: "Terikat",
+    notBound: "Belum Terikat",
+    rememberMe: "Ingat Saya",
+    safetyNotice: "NOTIS KESELAMATAN",
+    disclaimer:
+      "Aplikasi ini direka untuk kegunaan litar tertutup sahaja. Jangan gunakan di jalan awam. Ujian kelajuan tinggi berbahaya kepada diri sendiri dan orang lain. Data bergantung pada ketepatan GPS.",
+    iAgree: "SAYA FAHAM & SETUJU",
+  },
 };
+
+interface User {
+  username: string;
+  password: string;
+  role: "admin" | "customer";
+  boundDeviceId?: string;
+}
 
 interface Split {
   distance: number; // meters
@@ -361,6 +501,7 @@ interface RaceRun {
   peakG?: number;
   accuracy?: number;
   splits: Split[];
+  telemetry: { time: number; speed: number; accel: number }[];
 }
 
 interface GPSPoint {
@@ -374,27 +515,33 @@ interface GPSPoint {
 // --- Constants ---
 
 const DEFAULT_TARGETS = [
-  { distance: 18.288, label: '60ft' },
-  { distance: 100, label: '100m' },
-  { distance: 201.168, label: '201m' },
-  { distance: 203, label: '203m' },
-  { distance: 402.336, label: '402m' },
+  { distance: 18.288, label: "60ft" },
+  { distance: 100, label: "100m" },
+  { distance: 201.168, label: "201m" },
+  { distance: 203, label: "203m" },
+  { distance: 402.336, label: "402m" },
 ];
 
 const SPEED_THRESHOLD = 0.5; // m/s to start/stop timer (detect movement)
 
 // --- Utils ---
 
-const calculateDistance = (p1: { lat: number, lng: number }, p2: { lat: number, lng: number }) => {
+const calculateDistance = (
+  p1: { lat: number; lng: number },
+  p2: { lat: number; lng: number },
+) => {
   const R = 6371e3; // meters
-  const phi1 = p1.lat * Math.PI / 180;
-  const phi2 = p2.lat * Math.PI / 180;
-  const dPhi = (p2.lat - p1.lat) * Math.PI / 180;
-  const dLambda = (p2.lng - p1.lng) * Math.PI / 180;
+  const phi1 = (p1.lat * Math.PI) / 180;
+  const phi2 = (p2.lat * Math.PI) / 180;
+  const dPhi = ((p2.lat - p1.lat) * Math.PI) / 180;
+  const dLambda = ((p2.lng - p1.lng) * Math.PI) / 180;
 
-  const a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) *
-    Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+  const a =
+    Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
+    Math.cos(phi1) *
+      Math.cos(phi2) *
+      Math.sin(dLambda / 2) *
+      Math.sin(dLambda / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c; // in meters
@@ -413,13 +560,42 @@ const formatDistance = (m: number) => {
 // --- Components ---
 
 export default function App() {
-  const [view, setView] = useState<'welcome' | 'dashboard' | 'history' | 'settings' | 'charts' | 'obd2'>('welcome');
+  const [view, setView] = useState<
+    "welcome" | "dashboard" | "history" | "settings" | "charts"
+  >("welcome");
+
+  // --- Navigation with History Support (for APK/Back Button) ---
+  const navigateView = (newView: "welcome" | "dashboard" | "history" | "settings" | "charts") => {
+    if (view !== newView) {
+      window.history.pushState({ view: newView }, "");
+      setView(newView);
+      if ("vibrate" in navigator) navigator.vibrate(5);
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state && event.state.view) {
+        setView(event.state.view);
+      } else {
+        setView("welcome");
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
   const [lang, setLang] = useState<Language>(() => {
-    const saved = localStorage.getItem('race_lang');
-    return (saved && TRANSLATIONS[saved as Language]) ? (saved as Language) : 'id';
+    const saved = localStorage.getItem("race_lang");
+    return saved && TRANSLATIONS[saved as Language]
+      ? (saved as Language)
+      : "id";
   });
   const [isLive, setIsLive] = useState(false);
   const [isActive, setIsActive] = useState(false);
+  const [showWarning, setShowWarning] = useState(true);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(
+    null,
+  );
   const [currentSpeed, setCurrentSpeed] = useState(0); // km/h
   const [maxSpeed, setMaxSpeed] = useState(0); // km/h
   const [elapsedTime, setElapsedTime] = useState(0); // ms
@@ -427,7 +603,7 @@ export default function App() {
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [splits, setSplits] = useState<Split[]>([]);
   const [history, setHistory] = useState<RaceRun[]>(() => {
-    const saved = localStorage.getItem('race_history');
+    const saved = localStorage.getItem("race_history");
     try {
       return saved ? JSON.parse(saved) : [];
     } catch {
@@ -435,8 +611,10 @@ export default function App() {
     }
   });
   const [customDistance, setCustomDistance] = useState<number>(1000);
-  const [selectedTargets, setSelectedTargets] = useState<typeof DEFAULT_TARGETS>(() => {
-    const saved = localStorage.getItem('race_targets');
+  const [selectedTargets, setSelectedTargets] = useState<
+    typeof DEFAULT_TARGETS
+  >(() => {
+    const saved = localStorage.getItem("race_targets");
     try {
       return saved ? JSON.parse(saved) : DEFAULT_TARGETS;
     } catch {
@@ -450,121 +628,297 @@ export default function App() {
   const [batteryCharging, setBatteryCharging] = useState<boolean>(false);
   const [signalBars, setSignalBars] = useState<number>(4);
   const [isOnline, setIsOnline] = useState<boolean>(true);
-  const [realTimeSpeedData, setRealTimeSpeedData] = useState<{ time: string, speed: number }[]>([]);
+  const [realTimeSpeedData, setRealTimeSpeedData] = useState<
+    { time: string; speed: number }[]
+  >(() => {
+    // Pre-initialize with 60 slots to ensure a continuous line from the start
+    return Array.from({ length: 100 }, (_, i) => ({
+      time: `t-${i}`,
+      speed: 0,
+    }));
+  });
   const [peakG, setPeakG] = useState(0);
-  const [sessionMaxAccuracy, setSessionMaxAccuracy] = useState<number | null>(null);
+  const peakGRef = useRef(0);
+  const [isGpsLocked, setIsGpsLocked] = useState(false);
+  const [sessionMaxAccuracy, setSessionMaxAccuracy] = useState<number | null>(
+    null,
+  );
   const [gpsVersion, setGpsVersion] = useState(0);
+  const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
 
-  // OBD2 States
-  const [obdConnected, setObdConnected] = useState(false);
-  const [obdRPM, setObdRPM] = useState(0);
-  const [obdCoolant, setObdCoolant] = useState(0);
-  const [obdLoad, setObdLoad] = useState(0);
-  const [obdThrottle, setObdThrottle] = useState(0);
-  const [isObdConnecting, setIsObdConnecting] = useState(false);
-
-  const characteristicRef = useRef<any>(null);
-  const obdIntervalRef = useRef<number | null>(null);
-
-  const connectOBD = async () => {
-    if (!(navigator as any).bluetooth) {
-      alert("Web Bluetooth not supported in this browser");
-      return;
+  // --- Auth State ---
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    const persistent = localStorage.getItem("race_logged_in") === "true";
+    const temporary = sessionStorage.getItem("race_logged_in") === "true";
+    return persistent || temporary;
+  });
+  const [deviceId] = useState(() => {
+    let id = localStorage.getItem("race_device_id");
+    if (!id) {
+      id = "DEV_" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      localStorage.setItem("race_device_id", id);
     }
-    setIsObdConnecting(true);
+    return id;
+  });
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const persistent = localStorage.getItem("race_current_user");
+    const temporary = sessionStorage.getItem("race_current_user");
+    const saved = persistent || temporary;
     try {
-      const device = await (navigator as any).bluetooth.requestDevice({
-        filters: [{ services: [0xFFE0] }],
-        optionalServices: [0xFFE0]
-      });
-
-      const server = await device.gatt?.connect();
-      const service = await server?.getPrimaryService(0xFFE0);
-      const characteristic = await service?.getCharacteristic(0xFFE1);
-
-      if (characteristic) {
-        characteristicRef.current = characteristic;
-        await characteristic.startNotifications();
-        
-        characteristic.addEventListener('characteristicvaluechanged', (event: any) => {
-          const value = new TextDecoder().decode(event.target.value);
-          // Very basic parser for ELM327 hex responses
-          const clean = value.replace(/\s/g, '');
-          
-          if (clean.includes('410C')) { // RPM
-            const hex = clean.split('410C')[1].substring(0, 4);
-            setObdRPM(parseInt(hex, 16) / 4);
-          } else if (clean.includes('4105')) { // Coolant
-            const hex = clean.split('4105')[1].substring(0, 2);
-            setObdCoolant(parseInt(hex, 16) - 40);
-          } else if (clean.includes('4104')) { // Load
-            const hex = clean.split('4104')[1].substring(0, 2);
-            setObdLoad((parseInt(hex, 16) * 100) / 255);
-          } else if (clean.includes('4111')) { // Throttle
-            const hex = clean.split('4111')[1].substring(0, 2);
-            setObdThrottle((parseInt(hex, 16) * 100) / 255);
-          }
-        });
-
-        // Initialize ELM327
-        const encoder = new TextEncoder();
-        await characteristic.writeValue(encoder.encode("ATZ\r"));
-        setTimeout(async () => {
-          await characteristic.writeValue(encoder.encode("ATE0\r"));
-          await characteristic.writeValue(encoder.encode("ATL0\r"));
-          await characteristic.writeValue(encoder.encode("ATSP0\r"));
-          
-          setObdConnected(true);
-          
-          // Start polling
-          let step = 0;
-          obdIntervalRef.current = window.setInterval(async () => {
-            const pids = ["010C\r", "0105\r", "0104\r", "0111\r"];
-            try {
-              await characteristic.writeValue(encoder.encode(pids[step]));
-              step = (step + 1) % pids.length;
-            } catch (e) {
-              console.error("Poll error", e);
-            }
-          }, 250);
-        }, 1000);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [users, setUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem("race_users");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [
+          { username: "Admin", password: "AdminDragRace27", role: "admin" },
+        ];
       }
-    } catch (err) {
-      console.error("OBD Error:", err);
-    } finally {
-      setIsObdConnecting(false);
+    }
+    // Initial Admin Account
+    return [{ username: "Admin", password: "AdminDragRace27", role: "admin" }];
+  });
+  const [loginForm, setLoginForm] = useState({
+    username: "",
+    password: "",
+    rememberMe: true,
+  });
+  const [loginError, setLoginError] = useState("");
+  const [newCustomerForm, setNewCustomerForm] = useState<{
+    username: string;
+    password: string;
+    role: "admin" | "customer";
+  }>({ username: "", password: "", role: "customer" });
+  const [adminMessage, setAdminMessage] = useState("");
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [hasAgreedToSafety, setHasAgreedToSafety] = useState(() => localStorage.getItem('race_safety_agreed') === 'true');
+  const wakeLockRef = useRef<any>(null);
+
+  // --- Screen Wake Lock Handler ---
+  useEffect(() => {
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator && isActive && !wakeLockRef.current) {
+        try {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        } catch (err) {
+          console.error('WakeLock error:', err);
+        }
+      } else if (!isActive && wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    };
+    requestWakeLock();
+    return () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    };
+  }, [isActive]);
+
+  // --- Vibration Feedback ---
+  const triggerVibrate = (pattern: number | number[]) => {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(pattern);
     }
   };
 
-  const disconnectOBD = () => {
-    if (obdIntervalRef.current) clearInterval(obdIntervalRef.current);
-    setObdConnected(false);
-    setObdRPM(0);
-    setObdCoolant(0);
-    setObdLoad(0);
-    setObdThrottle(0);
+  // Save users to localStorage
+  useEffect(() => {
+    localStorage.setItem("race_users", JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    if (splits.some((s, idx) => s.time && !splitsRef.current[idx]?.time)) {
+      triggerVibrate(50); // Short buzz on split achievement
+    }
+  }, [splits]);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = TRANSLATIONS[lang];
+    const user = users.find(
+      (u) =>
+        u.username === loginForm.username && u.password === loginForm.password,
+    );
+
+    if (user) {
+      // Logic for 1 account 1 device
+      // Admins are exempt from device binding
+      if (user.role === "customer") {
+        if (user.boundDeviceId && user.boundDeviceId !== deviceId) {
+          setLoginError(t.deviceAlreadyBound);
+          return;
+        }
+
+        // Bind device if not already bound
+        if (!user.boundDeviceId) {
+          const updatedUsers = users.map((u) =>
+            u.username === user.username
+              ? { ...u, boundDeviceId: deviceId }
+              : u,
+          );
+          setUsers(updatedUsers);
+          const boundUser = { ...user, boundDeviceId: deviceId };
+          setCurrentUser(boundUser);
+
+          if (loginForm.rememberMe) {
+            localStorage.setItem("race_logged_in", "true");
+            localStorage.setItem(
+              "race_current_user",
+              JSON.stringify(boundUser),
+            );
+          } else {
+            sessionStorage.setItem("race_logged_in", "true");
+            sessionStorage.setItem(
+              "race_current_user",
+              JSON.stringify(boundUser),
+            );
+          }
+        } else {
+          setCurrentUser(user);
+          if (loginForm.rememberMe) {
+            localStorage.setItem("race_logged_in", "true");
+            localStorage.setItem("race_current_user", JSON.stringify(user));
+          } else {
+            sessionStorage.setItem("race_logged_in", "true");
+            sessionStorage.setItem("race_current_user", JSON.stringify(user));
+          }
+        }
+      } else {
+        setCurrentUser(user);
+        if (loginForm.rememberMe) {
+          localStorage.setItem("race_logged_in", "true");
+          localStorage.setItem("race_current_user", JSON.stringify(user));
+        } else {
+          sessionStorage.setItem("race_logged_in", "true");
+          sessionStorage.setItem("race_current_user", JSON.stringify(user));
+        }
+      }
+
+      setIsLoggedIn(true);
+      setLoginError("");
+      setLoginForm({ username: "", password: "", rememberMe: true });
+    } else {
+      setLoginError(t.invalidCredentials);
+    }
   };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    localStorage.removeItem("race_logged_in");
+    localStorage.removeItem("race_current_user");
+    sessionStorage.removeItem("race_logged_in");
+    sessionStorage.removeItem("race_current_user");
+    setView("welcome");
+  };
+
+  const handleCreateCustomer = (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = TRANSLATIONS[lang];
+    if (!newCustomerForm.username) return setAdminMessage(t.nameRequired);
+    if (newCustomerForm.password.length < 4)
+      return setAdminMessage(t.passRequired);
+
+    if (users.find((u) => u.username === newCustomerForm.username)) {
+      return setAdminMessage("Username already exists");
+    }
+
+    setUsers((prev) => [...prev, { ...newCustomerForm }]);
+    setNewCustomerForm({ username: "", password: "", role: "customer" });
+    setAdminMessage(t.userCreated);
+    setTimeout(() => setAdminMessage(""), 3000);
+  };
+
+  const handleDeleteUser = (username: string) => {
+    if (username === "Admin") return; // Protect main admin
+    if (username === currentUser?.username) return; // Protect currently logged in user
+
+    setUserToDelete(username);
+  };
+
+  const confirmDeleteUser = () => {
+    if (userToDelete) {
+      setUsers((prev) => prev.filter((u) => u.username !== userToDelete));
+      setUserToDelete(null);
+    }
+  };
+
+  const handleResetDevice = (username: string) => {
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.username === username ? { ...u, boundDeviceId: undefined } : u,
+      ),
+    );
+    setAdminMessage(TRANSLATIONS[lang].resetDevice + " OK");
+    setTimeout(() => setAdminMessage(""), 3000);
+  };
+
+  // Refs for GPS callback to avoid re-triggering watchPosition
+  const isLiveRef = useRef(isLive);
+  const isActiveRef = useRef(isActive);
+  const maxSpeedRef = useRef(maxSpeed);
+  const accuracyRef = useRef(accuracy);
+  const splitsRef = useRef(splits);
+  const elapsedTimeRef = useRef(elapsedTime);
+  const selectedTargetsRef = useRef(selectedTargets);
+
+  useEffect(() => {
+    isLiveRef.current = isLive;
+  }, [isLive]);
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
+  useEffect(() => {
+    maxSpeedRef.current = maxSpeed;
+  }, [maxSpeed]);
+  useEffect(() => {
+    accuracyRef.current = accuracy;
+  }, [accuracy]);
+  useEffect(() => {
+    splitsRef.current = splits;
+  }, [splits]);
+  useEffect(() => {
+    elapsedTimeRef.current = elapsedTime;
+  }, [elapsedTime]);
+  useEffect(() => {
+    peakGRef.current = peakG;
+  }, [peakG]);
+  useEffect(() => {
+    selectedTargetsRef.current = selectedTargets;
+  }, [selectedTargets]);
 
   const startPointRef = useRef<GPSPoint | null>(null);
   const lastPointRef = useRef<GPSPoint | null>(null);
   const timerRef = useRef<number | null>(null);
   const pointsRef = useRef<GPSPoint[]>([]);
+  const sessionTelemetryRef = useRef<
+    { time: number; speed: number; accel: number }[]
+  >([]);
 
   // System Status monitor (Battery & Signal)
   useEffect(() => {
     // Battery
-    if ('getBattery' in navigator) {
+    if ("getBattery" in navigator) {
       (navigator as any).getBattery().then((battery: any) => {
         const updateBattery = () => {
           setBatteryLevel(Math.round(battery.level * 100));
           setBatteryCharging(battery.charging);
         };
         updateBattery();
-        battery.addEventListener('levelchange', updateBattery);
-        battery.addEventListener('chargingchange', updateBattery);
+        battery.addEventListener("levelchange", updateBattery);
+        battery.addEventListener("chargingchange", updateBattery);
         return () => {
-          battery.removeEventListener('levelchange', updateBattery);
-          battery.removeEventListener('chargingchange', updateBattery);
+          battery.removeEventListener("levelchange", updateBattery);
+          battery.removeEventListener("chargingchange", updateBattery);
         };
       });
     }
@@ -576,12 +930,12 @@ export default function App() {
         setSignalBars(0);
         return;
       }
-      
+
       const conn = (navigator as any).connection;
       if (conn) {
-        if (conn.effectiveType === '4g') setSignalBars(4);
-        else if (conn.effectiveType === '3g') setSignalBars(3);
-        else if (conn.effectiveType === '2g') setSignalBars(2);
+        if (conn.effectiveType === "4g") setSignalBars(4);
+        else if (conn.effectiveType === "3g") setSignalBars(3);
+        else if (conn.effectiveType === "2g") setSignalBars(2);
         else setSignalBars(1);
       } else {
         setSignalBars(4); // Default to full if unknown but online
@@ -589,15 +943,15 @@ export default function App() {
     };
 
     updateConnection();
-    window.addEventListener('online', updateConnection);
-    window.addEventListener('offline', updateConnection);
+    window.addEventListener("online", updateConnection);
+    window.addEventListener("offline", updateConnection);
     const conn = (navigator as any).connection;
-    if (conn) conn.addEventListener('change', updateConnection);
+    if (conn) conn.addEventListener("change", updateConnection);
 
     return () => {
-      window.removeEventListener('online', updateConnection);
-      window.removeEventListener('offline', updateConnection);
-      if (conn) conn.removeEventListener('change', updateConnection);
+      window.removeEventListener("online", updateConnection);
+      window.removeEventListener("offline", updateConnection);
+      if (conn) conn.removeEventListener("change", updateConnection);
     };
   }, []);
 
@@ -605,22 +959,22 @@ export default function App() {
 
   // Save changes
   useEffect(() => {
-    localStorage.setItem('race_history', JSON.stringify(history));
+    localStorage.setItem("race_history", JSON.stringify(history));
   }, [history]);
 
   useEffect(() => {
-    localStorage.setItem('race_targets', JSON.stringify(selectedTargets));
+    localStorage.setItem("race_targets", JSON.stringify(selectedTargets));
   }, [selectedTargets]);
 
   useEffect(() => {
-    localStorage.setItem('race_lang', lang);
+    localStorage.setItem("race_lang", lang);
   }, [lang]);
 
   const dailyBestIds = useMemo(() => {
     const bests: Record<string, string> = {}; // key: date_distance, value: runId
     const bestTimes: Record<string, number> = {};
 
-    history.forEach(run => {
+    history.forEach((run) => {
       const d = new Date(run.date);
       const dateKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       // Round distance to avoid tiny floating point differences
@@ -641,108 +995,163 @@ export default function App() {
       const accel = event.acceleration;
       if (accel && accel.x !== null && accel.y !== null && accel.z !== null) {
         // Calculate G-Force (absolute linear acceleration)
-        const totalAccel = Math.sqrt(accel.x ** 2 + accel.y ** 2 + accel.z ** 2);
+        const totalAccel = Math.sqrt(
+          accel.x ** 2 + accel.y ** 2 + accel.z ** 2,
+        );
         const gs = totalAccel / 9.80665;
         // Smoothing and Peak tracking
-        setGForce(prev => (prev * 0.7) + (gs * 0.3));
-        if (gs > peakG) setPeakG(gs);
+        setGForce((prev) => prev * 0.7 + gs * 0.3);
+        setPeakG((prev) => {
+          const next = gs > prev ? gs : prev;
+          peakGRef.current = next;
+          return next;
+        });
       }
     };
 
-    window.addEventListener('devicemotion', handleMotion);
-    return () => window.removeEventListener('devicemotion', handleMotion);
+    window.addEventListener("devicemotion", handleMotion);
+    return () => window.removeEventListener("devicemotion", handleMotion);
   }, []);
 
   // Geolocation handling
   useEffect(() => {
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        const { latitude, longitude, speed, accuracy, altitude, heading } = position.coords;
+        const { latitude, longitude, speed, accuracy, altitude, heading } =
+          position.coords;
+
+        // --- NOISE FILTER & ACCURACY OPTIMIZATION ---
+        // 1. Update basic GPS states
         setAccuracy(accuracy);
         setGpsAltitude(altitude);
         setGpsHeading(heading);
-        
+
+        // 2. Determine if Signal is "Locked" (Accuracy < 10m is standard, < 5m is pro)
+        const locked = accuracy !== null && accuracy <= 10;
+        setIsGpsLocked(locked);
+
+        // --- SPEED UI UPDATES (Always update even if accuracy is poor) ---
+        const rawSpeedKmr = speed !== null && speed > 0 ? speed * 3.6 : 0;
+        setCurrentSpeed((prev) => rawSpeedKmr * 0.8 + prev * 0.2);
+        const speedKmr = rawSpeedKmr;
+
+        setRealTimeSpeedData((prev) => {
+          const newPoint = {
+            time: `t-${Date.now()}-${Math.random()}`,
+            speed: Math.round(speedKmr),
+          };
+          // Simple rolling window of 100 points
+          return [...prev.slice(1), newPoint];
+        });
+
+        // 3. Noise Filtering: If signal is extremely poor (> 30m), we ignore this point for distance calculation
+        if (accuracy > 30) return;
+
         const currentPoint: GPSPoint = {
           lat: latitude,
           lng: longitude,
           timestamp: position.timestamp,
           speed: speed,
-          accuracy: accuracy
+          accuracy: accuracy,
         };
 
-        // Convert speed to km/h (speed is m/s)
-        const speedKmr = (speed !== null && speed > 0) ? speed * 3.6 : 0;
-        
-        // Update real-time speed data for the graph (limited to 60 points for better performance)
-        setRealTimeSpeedData(prev => {
-          const newData = [...prev, { 
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 
-            speed: Math.round(speedKmr) 
-          }];
-          return newData.slice(-60);
-        });
-
-        if (accuracy < (sessionMaxAccuracy || Infinity)) setSessionMaxAccuracy(accuracy);
-
-        if (!isLive) {
-          // even if not live, we show current speed if available
-          setCurrentSpeed(speedKmr);
-          return;
+        if (isActiveRef.current) {
+          sessionTelemetryRef.current.push({
+            time: elapsedTimeRef.current / 1000,
+            speed: speedKmr,
+            accel: gForce,
+          });
         }
 
-        setCurrentSpeed(speedKmr);
-        if (speedKmr > maxSpeed) setMaxSpeed(speedKmr);
+        setSessionMaxAccuracy((prev) =>
+          accuracy < (prev || Infinity) ? accuracy : prev,
+        );
 
-        // Auto-start logic: speed threshold
-        if (!isActive && speedKmr > 1.0) { // Start if we move faster than 1km/h
+        if (!isLiveRef.current) return;
+
+        setMaxSpeed((prev) => {
+          const nextMax = speedKmr > prev ? speedKmr : prev;
+          maxSpeedRef.current = nextMax;
+          return nextMax;
+        });
+
+        // Auto-start logic: tighter threshold to prevent jitter starts
+        if (!isActiveRef.current && speedKmr > 2.0) {
           setIsActive(true);
+          isActiveRef.current = true;
           startPointRef.current = currentPoint;
           lastPointRef.current = currentPoint;
           pointsRef.current = [currentPoint];
           setElapsedTime(0);
+          elapsedTimeRef.current = 0;
           setDistanceCovered(0);
-          setSplits(selectedTargets.map(t => ({ ...t, time: undefined, speedAtSplit: undefined })));
-          
+
+          const freshSplits = selectedTargetsRef.current.map((t) => ({
+            ...t,
+            time: undefined,
+            speedAtSplit: undefined,
+          }));
+          setSplits(freshSplits);
+          splitsRef.current = freshSplits;
+
           const startTime = Date.now();
+          if (timerRef.current) clearInterval(timerRef.current);
           timerRef.current = window.setInterval(() => {
-            setElapsedTime(Date.now() - startTime);
+            const now = Date.now();
+            const elapsed = now - startTime;
+            setElapsedTime(elapsed);
+            elapsedTimeRef.current = elapsed;
           }, 10);
         }
 
-          // Active run logic
-        if (isActive && lastPointRef.current) {
-          const dist = calculateDistance(lastPointRef.current, currentPoint);
-          const totalDist = distanceCovered + dist;
-          setDistanceCovered(totalDist);
-          pointsRef.current.push(currentPoint);
+        if (isActiveRef.current && lastPointRef.current) {
+          // 5. Distance Calculation filtering
+          // If accuracy is worse than current session max by a lot, skip distance increment to avoid "drifting"
+          if (accuracy > accuracyRef.current * 2 && accuracy > 15) return;
 
-          // Check and update splits
-          let updatedAnySplit = false;
-          const nextSplits = splits.map(s => {
-            if (!s.time && totalDist >= s.distance) {
-              updatedAnySplit = true;
-              return { 
-                ...s, 
-                time: elapsedTime / 1000, 
-                speedAtSplit: speedKmr 
-              };
-            }
-            return s;
+          const dist = calculateDistance(lastPointRef.current, currentPoint);
+
+          setDistanceCovered((prev) => {
+            const totalDist = prev + dist;
+
+            // Check and update splits using the closure-safe value
+            setSplits((currentSplits) => {
+              let updated = false;
+              const nextSplits = currentSplits.map((s) => {
+                if (!s.time && totalDist >= s.distance) {
+                  updated = true;
+                  return {
+                    ...s,
+                    time: elapsedTimeRef.current / 1000,
+                    speedAtSplit: speedKmr,
+                  };
+                }
+                return s;
+              });
+
+              if (updated) {
+                splitsRef.current = nextSplits;
+
+                const maxTargetDist =
+                  selectedTargetsRef.current.length > 0
+                    ? Math.max(
+                        ...selectedTargetsRef.current.map((t) => t.distance),
+                      )
+                    : 0;
+
+                if (maxTargetDist > 0 && totalDist >= maxTargetDist) {
+                  handleStop(totalDist, elapsedTimeRef.current, nextSplits);
+                }
+              }
+
+              return nextSplits;
+            });
+
+            return totalDist;
           });
 
-          if (updatedAnySplit) {
-            setSplits(nextSplits);
-          }
-
-          const maxTargetDistance = selectedTargets.length > 0 
-            ? Math.max(...selectedTargets.map(t => t.distance)) 
-            : 0;
-
-          if (maxTargetDistance > 0 && totalDist >= maxTargetDistance) {
-            handleStop(totalDist, elapsedTime, nextSplits);
-          } else {
-            lastPointRef.current = currentPoint;
-          }
+          pointsRef.current.push(currentPoint);
+          lastPointRef.current = currentPoint;
         }
       },
       (error) => {
@@ -751,17 +1160,17 @@ export default function App() {
       {
         enableHighAccuracy: true,
         maximumAge: 0,
-        timeout: 5000
-      }
+        timeout: 10000, // Increased timeout slightly to avoid frequent errors, but accuracy remains top priority
+      },
     );
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [isLive, isActive, distanceCovered, elapsedTime, selectedTargets, maxSpeed, gpsVersion]);
+  }, [gpsVersion]); // ONLY depend on version (manual reset)
 
   const calibrateGPS = () => {
-    setGpsVersion(v => v + 1);
+    setGpsVersion((v) => v + 1);
     // Force a small notification or just trust the re-mount
   };
 
@@ -773,18 +1182,30 @@ export default function App() {
     setElapsedTime(0);
     setDistanceCovered(0);
     setSessionMaxAccuracy(null);
-    setSplits(selectedTargets.map(t => ({ ...t, time: undefined, speedAtSplit: undefined })));
+    sessionTelemetryRef.current = [];
+    setSplits(
+      selectedTargets.map((t) => ({
+        ...t,
+        time: undefined,
+        speedAtSplit: undefined,
+      })),
+    );
   };
 
-  const handleStop = (finalDistance?: number | any, finalTime?: number, finalSplits?: Split[]) => {
+  const handleStop = (
+    finalDistance?: number | any,
+    finalTime?: number,
+    finalSplits?: Split[],
+  ) => {
     if (timerRef.current) clearInterval(timerRef.current);
-    
-    if (isActive) {
-      // If triggered by a button click event, finalDistance will be an object. 
+
+    if (isActiveRef.current) {
+      // If triggered by a button click event, finalDistance will be an object.
       // We only want numbers for automatic stops.
-      const isAutoStop = typeof finalDistance === 'number';
+      const isAutoStop = typeof finalDistance === "number";
       const effectiveDistance = isAutoStop ? finalDistance : distanceCovered;
-      const effectiveTime = typeof finalTime === 'number' ? finalTime : elapsedTime;
+      const effectiveTime =
+        typeof finalTime === "number" ? finalTime : elapsedTime;
       const effectiveSplits = Array.isArray(finalSplits) ? finalSplits : splits;
 
       const newRun: RaceRun = {
@@ -792,21 +1213,24 @@ export default function App() {
         date: Date.now(),
         totalDistance: effectiveDistance,
         totalTime: effectiveTime,
-        maxSpeed: maxSpeed,
+        maxSpeed: maxSpeedRef.current,
         avgSpeed: (effectiveDistance / (effectiveTime / 1000)) * 3.6,
-        peakG: peakG,
-        accuracy: sessionMaxAccuracy || (accuracy || 0),
-        splits: [...effectiveSplits]
+        peakG: peakGRef.current,
+        accuracy: sessionMaxAccuracy || accuracy || 0,
+        splits: [...effectiveSplits],
+        telemetry: [...sessionTelemetryRef.current],
       };
-      setHistory(prev => [newRun, ...prev]);
+      setHistory((prev) => [newRun, ...prev]);
     }
 
     setIsActive(false);
+    isActiveRef.current = false;
     setIsLive(false);
+    isLiveRef.current = false;
   };
 
   const deleteHistory = (id: string) => {
-    setHistory(prev => prev.filter(h => h.id !== id));
+    setHistory((prev) => prev.filter((h) => h.id !== id));
   };
 
   const clearHistory = () => {
@@ -816,755 +1240,1813 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#111111] text-gray-100 font-sans selection:bg-violet-500/30">
+    <div className="min-h-screen bg-[#111111] text-gray-100 font-sans selection:bg-violet-500/30 overflow-hidden">
+      <AnimatePresence>
+        {!hasAgreedToSafety && isLoggedIn && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-6 text-center"
+          >
+            <div className="max-w-xs w-full flex flex-col items-center gap-8">
+              <div className="w-24 h-24 rounded-[2rem] bg-violet-600/10 border border-violet-500/20 flex items-center justify-center relative">
+                <div className="absolute inset-0 bg-violet-500/20 blur-3xl rounded-full" />
+                <AlertTriangle className="w-10 h-10 text-violet-500 relative z-10" />
+              </div>
+
+              <div className="space-y-4">
+                <h2 className="text-xl font-black italic tracking-widest text-white uppercase">
+                  {t.safetyNotice}
+                </h2>
+                <div className="h-1 w-12 bg-violet-600 mx-auto rounded-full" />
+                <p className="text-[10px] text-gray-400 font-bold leading-relaxed uppercase tracking-tighter">
+                  {t.disclaimer}
+                </p>
+              </div>
+
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setHasAgreedToSafety(true);
+                  localStorage.setItem("race_safety_agreed", "true");
+                  triggerVibrate(10);
+                }}
+                className="w-full py-5 bg-violet-600 rounded-3xl text-[10px] font-black uppercase tracking-widest italic shadow-2xl shadow-violet-600/40 border border-violet-400/30"
+              >
+                {t.iAgree}
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Background Decor */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-20">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-20 z-0">
         <div className="absolute top-[-5%] left-[-5%] w-[30%] h-[30%] bg-violet-600/40 blur-[80px] rounded-full" />
         <div className="absolute bottom-[-5%] right-[-5%] w-[30%] h-[30%] bg-blue-600/40 blur-[80px] rounded-full" />
       </div>
 
-      <main className="relative z-10 max-w-lg mx-auto min-h-screen flex flex-col p-4">
-        {/* System Bar */}
-        <div className="flex justify-end items-center gap-3 mb-2 px-1">
-          <div className="flex items-center gap-1.5 mr-auto">
-             <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]'}`} />
-             <span className={`text-[9px] font-black uppercase tracking-widest ${isOnline ? 'text-gray-500' : 'text-red-500 italic'}`}>
-               {isOnline ? 'Online' : 'Offline'}
-             </span>
-          </div>
+      <AnimatePresence mode="wait">
+        {!isLoggedIn ? (
+          <motion.main
+            key="login"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="relative z-10 max-w-lg mx-auto min-h-screen flex flex-col items-center justify-center p-6 touch-manipulation"
+          >
+            <div className="w-full bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
 
-          <div className="flex items-center gap-1">
-            <div className="flex items-end gap-0.5 h-3">
-              {[1, 2, 3, 4].map(b => (
-                <div 
-                  key={b} 
-                  className={`w-0.5 rounded-full transition-all ${b <= signalBars ? 'bg-violet-400' : 'bg-gray-800'}`}
-                  style={{ height: `${25 * b}%` }}
-                />
-              ))}
-            </div>
-            <span className="text-[9px] font-black text-gray-500 font-mono italic ml-1">
-              {signalBars === 4 ? 'LTE' : signalBars === 3 ? '4G' : signalBars === 2 ? '3G' : signalBars === 1 ? 'E' : 'OFF'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 bg-gray-900/40 px-2 py-0.5 rounded-full border border-gray-800/50">
-            <span className="text-[9px] font-black font-mono text-gray-400">{batteryLevel}%</span>
-            <div className="relative">
-              {batteryLevel > 80 ? <BatteryFull className={`w-3.5 h-3.5 ${batteryCharging ? 'text-green-400' : 'text-gray-400'}`} /> :
-               batteryLevel > 30 ? <BatteryMedium className={`w-3.5 h-3.5 ${batteryCharging ? 'text-green-400' : 'text-gray-400'}`} /> :
-               <BatteryLow className={`w-3.5 h-3.5 ${batteryCharging ? 'text-green-400' : 'text-red-500 animate-pulse'}`} />}
-              {batteryCharging && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-1 h-1 bg-green-400 rounded-full animate-ping" />
+              <div className="flex flex-col items-center mb-10">
+                <div className="w-20 h-20 bg-violet-500/10 rounded-full flex items-center justify-center mb-4 border border-violet-500/20">
+                  <Flag className="w-10 h-10 text-violet-500 -rotate-12 fill-violet-500/20" />
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Header */}
-        {view !== 'welcome' && (
-          <header className="flex items-center justify-between py-2 border-b border-gray-800 mb-4">
-            <div className="flex flex-col">
-              <h1 className="text-base font-black tracking-tighter flex items-center gap-1.5 italic uppercase leading-none">
-                <Flag className="w-3.5 h-3.5 text-violet-500 -rotate-12 fill-violet-500/20" />
-                DRAG <span className="text-violet-500">RACE</span>
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[7px] not-italic font-mono bg-violet-500 text-black px-1 py-0.5 rounded font-black tracking-tighter">L.A PRO+</span>
-                <p className="text-[7px] text-gray-700 uppercase tracking-[0.2em] font-mono leading-none">{t.elitePerformance}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-0.5 bg-gray-950/80 p-0.5 rounded-full border border-gray-800">
-              <button 
-                onClick={() => setView('dashboard')}
-                className={`p-1.5 rounded-full transition-all ${view === 'dashboard' ? 'bg-violet-500 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                title={t.dashboard}
-              >
-                <Gauge className="w-4 h-4" />
-              </button>
-              <button 
-                onClick={() => setView('obd2')}
-                className={`p-1.5 rounded-full transition-all ${view === 'obd2' ? 'bg-violet-500 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                title={t.obdScanner}
-              >
-                <Cpu className="w-4 h-4" />
-              </button>
-              <button 
-                onClick={() => setView('charts')}
-                className={`p-1.5 rounded-full transition-all ${view === 'charts' ? 'bg-violet-500 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                title={t.charts}
-              >
-                <Activity className="w-4 h-4" />
-              </button>
-              <button 
-                onClick={() => setView('history')}
-                className={`p-1.5 rounded-full transition-all ${view === 'history' ? 'bg-violet-500 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                title={t.history}
-              >
-                <HistoryIcon className="w-4 h-4" />
-              </button>
-              <button 
-                onClick={() => setView('settings')}
-                className={`p-1.5 rounded-full transition-all ${view === 'settings' ? 'bg-violet-500 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                title={t.settings}
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-            </div>
-          </header>
-        )}
-
-        <AnimatePresence mode="popLayout">
-          {view === 'welcome' && (
-            <motion.div
-              key="welcome"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-              className="flex-1 flex flex-col items-center justify-center text-center px-4"
-            >
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="mb-8"
-              >
-                <div className="relative inline-block mb-10">
-                  <div className="relative z-10 bg-gray-900 p-6 rounded-[2.5rem] border border-gray-800 shadow-2xl">
-                    <Flag className="w-16 h-16 text-violet-500 mx-auto drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] fill-violet-500/10" />
-                  </div>
-                  <motion.div 
-                    animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
-                    transition={{ repeat: Infinity, duration: 4 }}
-                    className="absolute inset-0 bg-violet-600/30 blur-[60px] -z-10"
-                  />
-                  <div className="absolute bottom-1 -right-4 bg-violet-500 text-black px-3 py-1 rounded-lg text-[10px] font-black italic tracking-widest shadow-2xl z-20 border border-white/20">
-                    PRO+
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-center mb-8">
-                  <h1 className="text-7xl font-black italic tracking-tighter text-white leading-none">DRAG</h1>
-                  <h1 className="text-7xl font-black italic tracking-tighter text-violet-500 leading-none -mt-2 drop-shadow-[0_0_20px_rgba(139,92,246,0.4)]">RACE</h1>
-                </div>
-
-                <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 mb-8 backdrop-blur-sm">
-                  <span className="text-[9px] font-mono font-black text-gray-500 uppercase tracking-[0.3em]">L.A Division</span>
-                  <div className="w-1 h-1 bg-violet-500 rounded-full animate-pulse" />
-                  <span className="text-[9px] font-mono font-black text-violet-400 uppercase tracking-[0.3em] italic">Precision Gear</span>
-                </div>
-
-                <p className="text-gray-500 text-[10px] max-w-[240px] mx-auto leading-relaxed uppercase tracking-[0.2em] font-bold opacity-60 mb-10">
-                  {t.precisionGPS}
+                <h1 className="text-3xl font-black italic tracking-tighter uppercase text-white leading-none">
+                  DRAG <span className="text-violet-500">RACE</span>
+                </h1>
+                <p className="text-[10px] text-gray-500 font-mono tracking-[0.3em] mt-2 uppercase">
+                  Elite Performance Tracker
                 </p>
-              </motion.div>
+              </div>
 
-              <motion.button
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.4 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setView('dashboard')}
-                className="bg-white text-black font-black py-4 px-12 rounded-2xl text-lg italic tracking-tight shadow-2xl shadow-white/10 flex items-center gap-3 group"
-              >
-                {t.enterTrack}
-                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </motion.button>
-
-              <motion.p 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.3 }}
-                transition={{ delay: 0.6 }}
-                className="absolute bottom-10 text-[8px] font-mono tracking-[0.5em] uppercase"
-              >
-                Authorized by L.A Tech Division
-              </motion.p>
-            </motion.div>
-          )}
-
-          {view === 'dashboard' && (
-            <motion.div 
-              key="dashboard"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="flex-1 flex flex-col gap-6 will-change-[opacity,transform]"
-            >
-              {/* Primary Speed Display */}
-              <div className="bg-gray-900/40 rounded-3xl p-8 border border-gray-800 flex flex-col items-center justify-center relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                
-                <div className="text-[10px] font-mono text-violet-500 mb-2 tracking-[0.2em] uppercase">{t.currentSpeed}</div>
-                <div className="relative">
-                   <div className="text-8xl font-black italic tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(139,92,246,0.3)]">
-                    {Math.round(currentSpeed)}
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
+                    {t.username}
+                  </label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+                    <input
+                      type="text"
+                      value={loginForm.username}
+                      onChange={(e) =>
+                        setLoginForm((prev) => ({
+                          ...prev,
+                          username: e.target.value,
+                        }))
+                      }
+                      placeholder={t.username}
+                      className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:border-violet-500/50 focus:ring-4 focus:ring-violet-500/10 transition-all placeholder:text-gray-700"
+                    />
                   </div>
-                  <div className="absolute -right-10 bottom-4 text-sm font-bold text-gray-500 italic">KM/H</div>
                 </div>
 
-                {/* Accuracy Status Indicator */}
-                <div className="flex flex-col items-center gap-1 mt-4 relative">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${accuracy !== null && accuracy < 10 ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : accuracy !== null && accuracy <= 30 ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'} shadow-lg`} />
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{t.gpsAccuracyLabel}</span>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
+                    {t.password}
+                  </label>
+                  <div className="relative">
+                    <Settings className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+                    <input
+                      type="password"
+                      value={loginForm.password}
+                      onChange={(e) =>
+                        setLoginForm((prev) => ({
+                          ...prev,
+                          password: e.target.value,
+                        }))
+                      }
+                      placeholder={t.password}
+                      className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:border-violet-500/50 focus:ring-4 focus:ring-violet-500/10 transition-all placeholder:text-gray-700"
+                    />
                   </div>
-                  <div className="text-[10px] font-black font-mono text-gray-400 italic flex items-center gap-2">
-                    <span>{accuracy !== null ? Math.round(Math.max(0, 100 - (accuracy - 3) * 3.3)) : 0}% <span className="text-[8px] text-gray-600 uppercase font-bold not-italic ml-0.5">Reliability</span></span>
-                    <motion.button
-                      whileTap={{ scale: 0.8 }}
-                      animate={{ rotate: gpsVersion * 360 }}
-                      transition={{ type: "spring", stiffness: 200, damping: 10 }}
-                      onClick={calibrateGPS}
-                      className="p-1 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 hover:border-violet-500/50 transition-colors text-violet-400"
-                      title={t.calibrate}
+                </div>
+
+                {loginError && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black py-3 rounded-xl text-center uppercase tracking-wider"
+                  >
+                    {loginError}
+                  </motion.div>
+                )}
+
+                <div className="flex items-center gap-3 px-1 mb-2">
+                  <div
+                    onClick={() =>
+                      setLoginForm((prev) => ({
+                        ...prev,
+                        rememberMe: !prev.rememberMe,
+                      }))
+                    }
+                    className="flex items-center gap-2 group cursor-pointer"
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                        loginForm.rememberMe
+                          ? "bg-violet-600 border-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.3)]"
+                          : "bg-gray-950 border-gray-800 group-hover:border-gray-700"
+                      }`}
                     >
-                      <Crosshair className="w-2.5 h-2.5" />
-                    </motion.button>
-                  </div>
-                </div>
-
-                <div className="mt-8 grid grid-cols-2 gap-8 w-full border-t border-gray-800 pt-6">
-                  <div className="text-center">
-                    <div className="text-[10px] uppercase font-mono text-gray-500 mb-1">{t.maxSpeed}</div>
-                    <div className="text-2xl font-bold font-mono text-violet-400 italic">{Math.round(maxSpeed)} <span className="text-[10px]">KM/H</span></div>
-                  </div>
-                  <div className="text-center border-l border-gray-800">
-                    <div className="text-[10px] uppercase font-mono text-gray-500 mb-1">{t.accuracy}</div>
-                    <div className={`text-2xl font-bold font-mono italic ${accuracy !== null && accuracy < 10 ? 'text-green-500' : 'text-yellow-500'}`}>
-                      {accuracy ? `±${Math.round(accuracy)}m` : '--'}
+                      {loginForm.rememberMe && (
+                        <CheckSquare className="w-3 h-3 text-white" />
+                      )}
                     </div>
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                      {t.rememberMe}
+                    </span>
                   </div>
                 </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-violet-600/20 active:scale-95 transition-all text-xs uppercase tracking-[0.2em] italic flex items-center justify-center gap-2 mt-4"
+                >
+                  {t.signIn}
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </form>
+
+              <div className="mt-8 text-center">
+                <p className="text-[9px] text-gray-600 uppercase tracking-widest font-medium italic">
+                  Powered by L.A Tech PRO Series
+                </p>
+              </div>
+            </div>
+          </motion.main>
+        ) : (
+          <motion.main
+            key="app"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="relative z-10 max-w-lg mx-auto min-h-screen flex flex-col p-4 touch-manipulation"
+          >
+            {/* System Bar */}
+            <div className="flex justify-end items-center gap-3 mb-2 px-1">
+              <div className="flex items-center gap-1.5 mr-auto">
+                <div
+                  className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]" : "bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]"}`}
+                />
+                <span
+                  className={`text-[9px] font-black uppercase tracking-widest ${isOnline ? "text-gray-500" : "text-red-500 italic"}`}
+                >
+                  {isOnline ? "Online" : "Offline"}
+                </span>
               </div>
 
-              {/* Progress & Timer */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Timer className="w-4 h-4 text-blue-400" />
-                    <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">{t.elapsedTime}</span>
-                  </div>
-                  <div className="text-3xl font-black font-mono italic tracking-tight">{formatTime(elapsedTime)}<span className="text-xs ml-1 text-gray-600">S</span></div>
+              <div className="flex items-center gap-1">
+                <div className="flex items-end gap-0.5 h-3">
+                  {[1, 2, 3, 4].map((b) => (
+                    <div
+                      key={b}
+                      className={`w-0.5 rounded-full transition-all ${b <= signalBars ? "bg-violet-400" : "bg-gray-800"}`}
+                      style={{ height: `${25 * b}%` }}
+                    />
+                  ))}
                 </div>
-                <div className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800">
-                  <div className="flex items-center gap-2 mb-2">
-                    <MapPin className="w-4 h-4 text-green-400" />
-                    <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">{t.distance}</span>
-                  </div>
-                  <div className="text-3xl font-black font-mono italic tracking-tight">{formatDistance(distanceCovered)}</div>
-                </div>
+                <span className="text-[9px] font-black text-gray-500 font-mono italic ml-1">
+                  {signalBars === 4
+                    ? "LTE"
+                    : signalBars === 3
+                      ? "4G"
+                      : signalBars === 2
+                        ? "3G"
+                        : signalBars === 1
+                          ? "E"
+                          : "OFF"}
+                </span>
               </div>
 
-              {/* Splits Table */}
-              <div className="bg-gray-950/80 rounded-3xl border border-gray-800 overflow-hidden mb-6">
-                <div className="flex items-center justify-between p-4 border-b border-gray-800/50 bg-gray-900/20">
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 flex items-center gap-2">
-                    <TrendingUp className="w-3 h-3" /> {t.splitsTargets}
-                  </h2>
-                  {isActive && (
-                    <div className="flex items-center gap-1.5 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
-                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.5)]" />
-                      <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">{t.recording}</span>
+              <div className="flex items-center gap-1.5 bg-gray-900/40 px-2 py-0.5 rounded-full border border-gray-800/50">
+                <span className="text-[9px] font-black font-mono text-gray-400">
+                  {batteryLevel}%
+                </span>
+                <div className="relative">
+                  {batteryLevel > 80 ? (
+                    <BatteryFull
+                      className={`w-3.5 h-3.5 ${batteryCharging ? "text-green-400" : "text-gray-400"}`}
+                    />
+                  ) : batteryLevel > 30 ? (
+                    <BatteryMedium
+                      className={`w-3.5 h-3.5 ${batteryCharging ? "text-green-400" : "text-gray-400"}`}
+                    />
+                  ) : (
+                    <BatteryLow
+                      className={`w-3.5 h-3.5 ${batteryCharging ? "text-green-400" : "text-red-500 animate-pulse"}`}
+                    />
+                  )}
+                  {batteryCharging && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-1 h-1 bg-green-400 rounded-full animate-ping" />
                     </div>
                   )}
                 </div>
-                
-                {/* Table Header */}
-                <div className="px-4 py-1.5 grid grid-cols-[1fr_auto_1fr] items-center gap-4 bg-black/20 border-b border-gray-800">
-                  <span className="text-[8px] font-bold text-gray-600 uppercase tracking-wider">{t.distance}</span>
-                  <span className="text-[8px] font-bold text-gray-600 uppercase tracking-wider text-center">TIME</span>
-                  <span className="text-[8px] font-bold text-gray-600 uppercase tracking-wider text-right">KPH</span>
-                </div>
+              </div>
+            </div>
 
-                <div className="divide-y divide-gray-800/30">
-                  {splits.map((s, i) => (
-                    <div key={i} className={`px-4 py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-4 transition-colors ${s.time ? 'bg-violet-500/5' : ''}`}>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-gray-200">{s.label}</span>
-                        <span className="text-[8px] font-mono text-gray-500 uppercase tracking-widest">{formatDistance(s.distance)}</span>
+            {/* Header */}
+            {view !== "welcome" && (
+              <header className="flex items-center justify-between py-2 border-b border-gray-800 mb-4">
+                <div className="flex flex-col">
+                  <h1 className="text-base font-black tracking-tighter flex items-center gap-1.5 italic uppercase leading-none">
+                    <Flag className="w-3.5 h-3.5 text-violet-500 -rotate-12 fill-violet-500/20" />
+                    DRAG <span className="text-violet-500">RACE</span>
+                  </h1>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[7px] not-italic font-mono bg-violet-500 text-black px-1 py-0.5 rounded font-black tracking-tighter">
+                      L.A PRO+
+                    </span>
+                    <p className="text-[7px] text-gray-700 uppercase tracking-[0.2em] font-mono leading-none">
+                      {t.elitePerformance}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-0.5 bg-gray-950/80 p-0.5 rounded-full border border-gray-800">
+                  <button
+                    onClick={() => navigateView("dashboard")}
+                    className={`p-1.5 rounded-full transition-all ${view === "dashboard" ? "bg-violet-500 text-white shadow-lg" : "text-gray-500 hover:text-white"}`}
+                    title={t.dashboard}
+                  >
+                    <Gauge className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => navigateView("charts")}
+                    className={`p-1.5 rounded-full transition-all ${view === "charts" ? "bg-violet-500 text-white shadow-lg" : "text-gray-500 hover:text-white"}`}
+                    title={t.charts}
+                  >
+                    <Activity className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => navigateView("history")}
+                    className={`p-1.5 rounded-full transition-all ${view === "history" ? "bg-violet-500 text-white shadow-lg" : "text-gray-500 hover:text-white"}`}
+                    title={t.history}
+                  >
+                    <HistoryIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => navigateView("settings")}
+                    className={`p-1.5 rounded-full transition-all ${view === "settings" ? "bg-violet-500 text-white shadow-lg" : "text-gray-500 hover:text-white"}`}
+                    title={t.settings}
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
+              </header>
+            )}
+
+            <AnimatePresence mode="popLayout">
+              {view === "welcome" && (
+                <motion.div
+                  key="welcome"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex-1 flex flex-col items-center justify-center text-center px-4"
+                >
+                  <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="mb-8"
+                  >
+                    <div className="relative inline-block mb-10">
+                      <div className="relative z-10 bg-gray-900 p-6 rounded-[2.5rem] border border-gray-800 shadow-2xl">
+                        <Flag className="w-16 h-16 text-violet-500 mx-auto drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] fill-violet-500/10" />
                       </div>
-                      
+                      <motion.div
+                        animate={{
+                          scale: [1, 1.2, 1],
+                          opacity: [0.3, 0.6, 0.3],
+                        }}
+                        transition={{ repeat: Infinity, duration: 4 }}
+                        className="absolute inset-0 bg-violet-600/30 blur-[60px] -z-10"
+                      />
+                      <div className="absolute bottom-1 -right-4 bg-violet-500 text-black px-3 py-1 rounded-lg text-[10px] font-black italic tracking-widest shadow-2xl z-20 border border-white/20">
+                        PRO+
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-center mb-8">
+                      <h1 className="text-7xl font-black italic tracking-tighter text-white leading-none">
+                        DRAG
+                      </h1>
+                      <h1 className="text-7xl font-black italic tracking-tighter text-violet-500 leading-none -mt-2 drop-shadow-[0_0_20px_rgba(139,92,246,0.4)]">
+                        RACE
+                      </h1>
+                    </div>
+
+                    <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 mb-8 backdrop-blur-sm">
+                      <span className="text-[9px] font-mono font-black text-gray-500 uppercase tracking-[0.3em]">
+                        L.A Division
+                      </span>
+                      <div className="w-1 h-1 bg-violet-500 rounded-full animate-pulse" />
+                      <span className="text-[9px] font-mono font-black text-violet-400 uppercase tracking-[0.3em] italic">
+                        Precision Gear
+                      </span>
+                    </div>
+
+                    <p className="text-gray-500 text-[10px] max-w-[240px] mx-auto leading-relaxed uppercase tracking-[0.2em] font-bold opacity-60 mb-10">
+                      {t.precisionGPS}
+                    </p>
+                  </motion.div>
+
+                  <motion.button
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => navigateView("dashboard")}
+                    className="bg-white text-black font-black py-4 px-12 rounded-2xl text-lg italic tracking-tight shadow-2xl shadow-white/10 flex items-center gap-3 group"
+                  >
+                    {t.enterTrack}
+                    <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </motion.button>
+
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 0.3 }}
+                    transition={{ delay: 0.6 }}
+                    className="absolute bottom-10 text-[8px] font-mono tracking-[0.5em] uppercase"
+                  >
+                    Authorized by L.A Tech Division
+                  </motion.p>
+                </motion.div>
+              )}
+
+              {view === "dashboard" && (
+                <motion.div
+                  key="dashboard"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex-1 flex flex-col gap-6 will-change-[opacity,transform]"
+                >
+                  {/* Primary Speed Display */}
+                  <div className="bg-gray-900/40 rounded-3xl p-8 border border-gray-800 flex flex-col items-center justify-center relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                    <div className="text-[10px] font-mono text-violet-500 mb-2 tracking-[0.2em] uppercase">
+                      {t.currentSpeed}
+                    </div>
+                    <div className="relative">
+                      <div className="text-8xl font-black italic tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(139,92,246,0.3)]">
+                        {Math.round(currentSpeed)}
+                      </div>
+                      <div className="absolute -right-10 bottom-4 text-sm font-bold text-gray-500 italic">
+                        KM/H
+                      </div>
+                    </div>
+
+                    {/* Accuracy Status Indicator */}
+                    <div className="flex flex-col items-center gap-1 mt-4 relative">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-2 h-2 rounded-full ${accuracy !== null && accuracy < 10 ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : accuracy !== null && accuracy <= 30 ? "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"} shadow-lg`}
+                        />
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                          {t.gpsAccuracyLabel}
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-black font-mono text-gray-400 italic flex items-center gap-2">
+                        <span>
+                          {accuracy !== null
+                            ? Math.min(
+                                100,
+                                Math.round(
+                                  Math.max(0, 100 - (accuracy - 3) * 3.3),
+                                ),
+                              )
+                            : 0}
+                          %{" "}
+                          <span className="text-[8px] text-gray-600 uppercase font-bold not-italic ml-0.5">
+                            Reliability
+                          </span>
+                        </span>
+                        <motion.button
+                          whileTap={{ scale: 0.8 }}
+                          animate={{ rotate: gpsVersion * 360 }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 200,
+                            damping: 10,
+                          }}
+                          onClick={calibrateGPS}
+                          className="p-1 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 hover:border-violet-500/50 transition-colors text-violet-400"
+                          title={t.calibrate}
+                        >
+                          <Crosshair className="w-2.5 h-2.5" />
+                        </motion.button>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 grid grid-cols-2 gap-8 w-full border-t border-gray-800 pt-6">
                       <div className="text-center">
-                        <div className={`text-xl font-black italic tabular-nums leading-none ${s.time ? 'text-white' : 'text-gray-800'}`}>
-                          {s.time ? s.time.toFixed(2) : '--.--'}<span className="text-[10px] ml-0.5 not-italic uppercase opacity-30">s</span>
+                        <div className="text-[10px] uppercase font-mono text-gray-500 mb-1">
+                          {t.maxSpeed}
+                        </div>
+                        <div className="text-2xl font-bold font-mono text-violet-400 italic">
+                          {Math.round(maxSpeed)}{" "}
+                          <span className="text-[10px]">KM/H</span>
                         </div>
                       </div>
-
-                      <div className="text-right">
-                        <div className={`text-lg font-black font-mono tracking-tighter italic ${s.speedAtSplit ? 'text-blue-400' : 'text-gray-700'}`}>
-                          {s.speedAtSplit ? Math.round(s.speedAtSplit) : '---'}<span className="text-[8px] ml-0.5 not-italic opacity-40">kph</span>
+                      <div className="text-center border-l border-gray-800">
+                        <div className="text-[10px] uppercase font-mono text-gray-500 mb-1">
+                          {t.accuracy}
+                        </div>
+                        <div
+                          className={`text-2xl font-bold font-mono italic ${accuracy !== null && accuracy < 10 ? "text-green-500" : "text-yellow-500"}`}
+                        >
+                          {accuracy ? `±${Math.round(accuracy)}m` : "--"}
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
 
-              {/* G-Force & GPS Info Grid */}
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="bg-gray-950/80 rounded-3xl p-4 border border-gray-800 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-16 h-16 bg-violet-500/5 blur-2xl -mr-8 -mt-8" />
-                  <div className="flex justify-between items-start mb-3">
-                    <span className="text-[9px] font-black text-violet-500 uppercase tracking-[0.2em]">{t.gForce}</span>
-                    <Activity className="w-3 h-3 text-violet-500/50" />
-                  </div>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black font-mono italic text-violet-500 leading-none">{gForce.toFixed(2)}</span>
-                    <span className="text-[10px] text-gray-600 font-bold italic">G</span>
-                  </div>
-                  <div className="mt-3 h-1 bg-gray-900 rounded-full overflow-hidden">
-                    <motion.div 
-                      className="h-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]" 
-                      animate={{ width: `${Math.min(gForce * 50, 100)}%` }} 
-                    />
-                  </div>
-                  <div className="mt-2 text-[8px] text-gray-500 font-mono flex justify-between uppercase">
-                    <span>Peak</span>
-                    <span className="text-violet-400 font-black">{peakG.toFixed(2)}G</span>
-                  </div>
-                </div>
-
-                <div className="bg-gray-900/60 rounded-3xl p-4 border border-gray-800 relative overflow-hidden">
-                   <div className="absolute bottom-0 left-0 w-12 h-12 bg-blue-500/5 blur-2xl -ml-6 -mb-6" />
-                  <div className="text-[10px] font-mono text-gray-500 uppercase mb-2 tracking-widest">{t.gpsInfo}</div>
-                  <div className="space-y-1.5 font-mono text-[9px]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">{t.altitude.toUpperCase()}</span>
-                      <span className="text-blue-300 font-bold">{gpsAltitude !== null ? `${Math.round(gpsAltitude)}m` : '---'}</span>
+                  {/* Progress & Timer */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Timer className="w-4 h-4 text-blue-400" />
+                        <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">
+                          {t.elapsedTime}
+                        </span>
+                      </div>
+                      <div className="text-3xl font-black font-mono italic tracking-tight">
+                        {formatTime(elapsedTime)}
+                        <span className="text-xs ml-1 text-gray-600">S</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">{t.heading.toUpperCase()}</span>
-                      <span className="text-blue-300 font-bold">{gpsHeading !== null ? `${Math.round(gpsHeading)}°` : '---'}</span>
-                    </div>
-                    <div className="flex justify-between border-t border-gray-800 pt-1 mt-1">
-                      <span className="text-gray-600 flex items-center gap-1">ACC</span>
-                      <span className={`font-black ${accuracy && accuracy < 5 ? 'text-green-500' : 'text-orange-500'}`}>±{accuracy ? accuracy.toFixed(1) : '---'}m</span>
+                    <div className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800">
+                      <div className="flex items-center gap-2 mb-2">
+                        <MapPin className="w-4 h-4 text-green-400" />
+                        <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">
+                          {t.distance}
+                        </span>
+                      </div>
+                      <div className="text-3xl font-black font-mono italic tracking-tight">
+                        {formatDistance(distanceCovered)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Controls */}
-              <div className="mt-auto space-y-4">
-                {!isLive ? (
-                  <button 
-                    onClick={handleStart}
-                    className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-violet-950/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight group"
-                  >
-                    <Play className="w-6 h-6 fill-current group-hover:scale-110 transition-transform" />
-                    {t.startTest}
-                  </button>
-                ) : (
-                  <button 
-                    onClick={handleStop}
-                    className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-red-950/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight"
-                  >
-                    <CircleStop className="w-6 h-6" />
-                    {t.stopSave}
-                  </button>
-                )}
-                
-                <p className="text-[9px] text-center text-gray-500 leading-relaxed max-w-[280px] mx-auto uppercase tracking-tighter">
-                  {t.movementDetected}
-                </p>
-              </div>
-            </motion.div>
-          )}
+                  {/* Splits Table */}
+                  <div className="bg-gray-950/80 rounded-3xl border border-gray-800 overflow-hidden mb-6">
+                    <div className="flex items-center justify-between p-4 border-b border-gray-800/50 bg-gray-900/20">
+                      <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 flex items-center gap-2">
+                        <TrendingUp className="w-3 h-3" /> {t.splitsTargets}
+                      </h2>
+                      {isActive && (
+                        <div className="flex items-center gap-1.5 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+                          <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.5)]" />
+                          <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">
+                            {t.recording}
+                          </span>
+                        </div>
+                      )}
+                    </div>
 
-          {view === 'history' && (
-            <motion.div 
-               key="history"
-               initial={{ opacity: 0 }}
-               animate={{ opacity: 1 }}
-               exit={{ opacity: 0 }}
-               transition={{ duration: 0.15 }}
-               className="flex-1 flex flex-col gap-4 will-change-[opacity]"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">{t.pastSessions}</h2>
-                {history.length > 0 && (
-                  <button onClick={clearHistory} className="text-[10px] font-bold text-red-500 hover:text-red-400 p-1">{t.deleteAll}</button>
-                )}
-              </div>
+                    {/* Table Header */}
+                    <div className="px-4 py-1.5 grid grid-cols-[1fr_auto_1fr] items-center gap-4 bg-black/20 border-b border-gray-800">
+                      <span className="text-[8px] font-bold text-gray-600 uppercase tracking-wider">
+                        {t.distance}
+                      </span>
+                      <span className="text-[8px] font-bold text-gray-600 uppercase tracking-wider text-center">
+                        TIME
+                      </span>
+                      <span className="text-[8px] font-bold text-gray-600 uppercase tracking-wider text-right">
+                        KPH
+                      </span>
+                    </div>
 
-              {history.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-600 p-12 text-center border-2 border-dashed border-gray-800 rounded-3xl">
-                  <HistoryIcon className="w-12 h-12 mb-4 opacity-20" />
-                  <p className="text-sm">{t.noHistory}<br /><span className="text-xs opacity-50">{t.takeFirstTest}</span></p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {history.map((run) => (
-                    <div key={run.id} className="bg-gray-900/60 rounded-2xl border border-gray-800 p-4 hover:border-gray-700 transition-colors">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex flex-col gap-2">
-                          <p className="text-[10px] text-gray-400 font-mono mb-1 bg-gray-950/50 inline-block px-2 py-0.5 rounded border border-gray-800 self-start">
-                            {new Date(run.date).toLocaleTimeString(lang === 'id' ? 'id-ID' : 'en-US', { hour12: false })} • {new Date(run.date).toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-US', { day: '2-digit', month: 'long', year: 'numeric' })}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xl font-black italic text-violet-500 uppercase leading-none">{run.maxSpeed.toFixed(0)} <span className="text-xs text-violet-400">{t.maxSpeed.toUpperCase()}</span></p>
-                            {dailyBestIds.has(run.id) && (
-                              <div className="flex items-center gap-1 bg-violet-500 text-black px-1.5 py-0.5 rounded text-[8px] font-black italic">
-                                <Trophy className="w-2 h-2 fill-current" />
-                                {t.dailyBest}
-                              </div>
-                            )}
+                    <div className="divide-y divide-gray-800/30">
+                      {splits.map((s, i) => (
+                        <div
+                          key={i}
+                          className={`px-4 py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-4 transition-colors ${s.time ? "bg-violet-500/5" : ""}`}
+                        >
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-gray-200">
+                              {s.label}
+                            </span>
+                            <span className="text-[8px] font-mono text-gray-500 uppercase tracking-widest">
+                              {formatDistance(s.distance)}
+                            </span>
+                          </div>
+
+                          <div className="text-center">
+                            <div
+                              className={`text-xl font-black italic tabular-nums leading-none ${s.time ? "text-white" : "text-gray-800"}`}
+                            >
+                              {s.time ? s.time.toFixed(2) : "--.--"}
+                              <span className="text-[10px] ml-0.5 not-italic uppercase opacity-30">
+                                s
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <div
+                              className={`text-lg font-black font-mono tracking-tighter italic ${s.speedAtSplit ? "text-blue-400" : "text-gray-700"}`}
+                            >
+                              {s.speedAtSplit
+                                ? Math.round(s.speedAtSplit)
+                                : "---"}
+                              <span className="text-[8px] ml-0.5 not-italic opacity-40">
+                                kph
+                              </span>
+                            </div>
                           </div>
                         </div>
-                        <button onClick={() => deleteHistory(run.id)} className="p-2 text-gray-600 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-4 h-4" />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* G-Force & GPS Info Grid */}
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    <div className="bg-gray-950/80 rounded-3xl p-4 border border-gray-800 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-violet-500/5 blur-2xl -mr-8 -mt-8" />
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="text-[9px] font-black text-violet-500 uppercase tracking-[0.2em]">
+                          {t.gForce}
+                        </span>
+                        <Activity className="w-3 h-3 text-violet-500/50" />
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-black font-mono italic text-violet-500 leading-none">
+                          {gForce.toFixed(2)}
+                        </span>
+                        <span className="text-[10px] text-gray-600 font-bold italic">
+                          G
+                        </span>
+                      </div>
+                      <div className="mt-3 h-1 bg-gray-900 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]"
+                          animate={{ width: `${Math.min(gForce * 50, 100)}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 text-[8px] text-gray-500 font-mono flex justify-between uppercase">
+                        <span>Peak</span>
+                        <span className="text-violet-400 font-black">
+                          {peakG.toFixed(2)}G
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-900/60 rounded-3xl p-4 border border-gray-800 relative overflow-hidden">
+                      <div className="absolute bottom-0 left-0 w-12 h-12 bg-blue-500/5 blur-2xl -ml-6 -mb-6" />
+                      <div className="text-[10px] font-mono text-gray-500 uppercase mb-2 tracking-widest">
+                        {t.gpsInfo}
+                      </div>
+                      <div className="space-y-1.5 font-mono text-[9px]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">
+                            {t.altitude.toUpperCase()}
+                          </span>
+                          <span className="text-blue-300 font-bold">
+                            {gpsAltitude !== null
+                              ? `${Math.round(gpsAltitude)}m`
+                              : "---"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">
+                            {t.heading.toUpperCase()}
+                          </span>
+                          <span className="text-blue-300 font-bold">
+                            {gpsHeading !== null
+                              ? `${Math.round(gpsHeading)}°`
+                              : "---"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-t border-gray-800 pt-1 mt-1">
+                          <span className="text-gray-600 flex items-center gap-1">
+                            ACC
+                          </span>
+                          <span
+                            className={`font-black ${accuracy && accuracy < 5 ? "text-green-500" : "text-orange-500"}`}
+                          >
+                            ±{accuracy ? accuracy.toFixed(1) : "---"}m
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Controls */}
+                  <div className="mt-auto space-y-4">
+                    {!isLive ? (
+                      <div className="flex flex-col gap-3">
+                        <div
+                          className={`text-[10px] font-black uppercase tracking-[0.2em] text-center px-4 py-2 rounded-xl transition-all border ${isGpsLocked ? "bg-green-500/10 border-green-500/30 text-green-500" : "bg-orange-500/10 border-orange-500/30 text-orange-500 animate-pulse"}`}
+                        >
+                          {isGpsLocked ? t.signalReady : t.waitingSignal}
+                        </div>
+                        <button
+                          onClick={handleStart}
+                          className="w-full bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-violet-950/20 active:scale-[0.96] transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight group"
+                        >
+                          <Play className="w-6 h-6 fill-current group-hover:scale-110 transition-transform" />
+                          {t.startTest}
                         </button>
                       </div>
+                    ) : (
+                      <button
+                        onClick={handleStop}
+                        className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-red-950/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight"
+                      >
+                        <CircleStop className="w-6 h-6" />
+                        {t.stopSave}
+                      </button>
+                    )}
 
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="bg-black/20 p-2 rounded-xl relative overflow-hidden group">
-                           <div className="absolute top-0 left-0 w-1 h-full bg-violet-500/20 group-hover:bg-violet-500 transition-colors" />
-                          <div className="text-[8px] uppercase text-gray-500 mb-1">{t.elapsedTime}</div>
-                          <div className="text-sm font-black font-mono tracking-tight">{(run.totalTime / 1000).toFixed(2)}<span className="text-[10px] ml-0.5 opacity-30">S</span></div>
-                        </div>
-                         <div className="bg-black/20 p-2 rounded-xl relative overflow-hidden group">
-                           <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/20 group-hover:bg-blue-500 transition-colors" />
-                          <div className="text-[8px] uppercase text-gray-500 mb-1">{t.distance}</div>
-                          <div className="text-sm font-black font-mono tracking-tight">{formatDistance(run.totalDistance)}</div>
-                        </div>
-                        <div className="bg-black/20 p-2 rounded-xl border border-gray-800/30">
-                          <div className="text-[8px] uppercase text-gray-500 mb-1">Peak G</div>
-                          <div className="text-sm font-black font-mono text-violet-400">{run.peakG ? run.peakG.toFixed(2) : '--.--'}<span className="text-[10px] ml-0.5 opacity-30">G</span></div>
-                        </div>
-                         <div className="bg-black/20 p-2 rounded-xl border border-gray-800/30">
-                          <div className="text-[8px] uppercase text-gray-500 mb-1">ACCURACY</div>
-                          <div className="text-sm font-black font-mono text-blue-400">±{run.accuracy ? run.accuracy.toFixed(1) : '--.-'}<span className="text-[10px] ml-0.5 opacity-30">M</span></div>
+                    <p className="text-[9px] text-center text-gray-500 leading-relaxed max-w-[280px] mx-auto uppercase tracking-tighter">
+                      {t.movementDetected}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+
+              {view === "history" && (
+                <motion.div
+                  key="history"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex-1 flex flex-col gap-4 will-change-[opacity]"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">
+                      {t.pastSessions}
+                    </h2>
+                    {history.length > 0 && (
+                      <button
+                        onClick={clearHistory}
+                        className="text-[10px] font-bold text-red-500 hover:text-red-400 p-1"
+                      >
+                        {t.deleteAll}
+                      </button>
+                    )}
+                  </div>
+
+                  {history.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-600 p-12 text-center border-2 border-dashed border-gray-800 rounded-3xl">
+                      <HistoryIcon className="w-12 h-12 mb-4 opacity-20" />
+                      <p className="text-sm">
+                        {t.noHistory}
+                        <br />
+                        <span className="text-xs opacity-50">
+                          {t.takeFirstTest}
+                        </span>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {history.map((run, index) => {
+                        const currentDate = new Date(
+                          run.date,
+                        ).toLocaleDateString(
+                          lang === "id" ? "id-ID" : "en-US",
+                          { day: "2-digit", month: "long", year: "numeric" },
+                        );
+                        const previousDate =
+                          index > 0
+                            ? new Date(
+                                history[index - 1].date,
+                              ).toLocaleDateString(
+                                lang === "id" ? "id-ID" : "en-US",
+                                {
+                                  day: "2-digit",
+                                  month: "long",
+                                  year: "numeric",
+                                },
+                              )
+                            : null;
+                        const showDivider = currentDate !== previousDate;
+
+                        return (
+                          <React.Fragment key={run.id}>
+                            {showDivider && (
+                              <div className="flex items-center gap-4 pt-4 pb-2 px-1">
+                                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-gray-800" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-violet-500 whitespace-nowrap bg-gray-950/50 px-3 py-1 rounded-full border border-violet-500/10">
+                                  {currentDate}
+                                </span>
+                                <div className="h-px flex-1 bg-gradient-to-l from-transparent to-gray-800" />
+                              </div>
+                            )}
+                            <div className="bg-gray-900/60 rounded-2xl border border-gray-800 p-4 hover:border-gray-700 transition-colors">
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="flex flex-col gap-2">
+                                  <p className="text-[10px] text-gray-400 font-mono mb-1 bg-gray-950/50 inline-block px-2 py-0.5 rounded border border-gray-800 self-start">
+                                    {new Date(run.date).toLocaleTimeString(
+                                      lang === "id" ? "id-ID" : "en-US",
+                                      { hour12: false },
+                                    )}{" "}
+                                    •{" "}
+                                    {new Date(run.date).toLocaleDateString(
+                                      lang === "id" ? "id-ID" : "en-US",
+                                      {
+                                        day: "2-digit",
+                                        month: "long",
+                                        year: "numeric",
+                                      },
+                                    )}
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xl font-black italic text-violet-500 uppercase leading-none">
+                                      {run.maxSpeed.toFixed(0)}{" "}
+                                      <span className="text-xs text-violet-400">
+                                        {t.maxSpeed.toUpperCase()}
+                                      </span>
+                                    </p>
+                                    {dailyBestIds.has(run.id) && (
+                                      <div className="flex items-center gap-1 bg-violet-500 text-black px-1.5 py-0.5 rounded text-[8px] font-black italic">
+                                        <Trophy className="w-2 h-2 fill-current" />
+                                        {t.dailyBest}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() =>
+                                      setExpandedHistoryId(
+                                        expandedHistoryId === run.id
+                                          ? null
+                                          : run.id,
+                                      )
+                                    }
+                                    className={`p-1.5 rounded-lg border transition-all flex items-center gap-1.5 active:scale-95 ${expandedHistoryId === run.id ? "bg-violet-500 border-violet-400 text-white" : "bg-gray-950 border-gray-800 text-gray-400 hover:border-gray-600"}`}
+                                  >
+                                    <span className="text-[10px] font-black uppercase tracking-widest px-1">
+                                      {t.details}
+                                    </span>
+                                    <motion.div
+                                      animate={{
+                                        rotate:
+                                          expandedHistoryId === run.id
+                                            ? 180
+                                            : 0,
+                                      }}
+                                    >
+                                      <ChevronDown className="w-3 h-3" />
+                                    </motion.div>
+                                  </button>
+                                  <button
+                                    onClick={() => deleteHistory(run.id)}
+                                    className="p-2 text-gray-600 hover:text-red-500 transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div className="bg-black/20 p-2 rounded-xl relative overflow-hidden group">
+                                  <div className="absolute top-0 left-0 w-1 h-full bg-violet-500/20 group-hover:bg-violet-500 transition-colors" />
+                                  <div className="text-[8px] uppercase text-gray-500 mb-1">
+                                    {t.elapsedTime}
+                                  </div>
+                                  <div className="text-sm font-black font-mono tracking-tight">
+                                    {(run.totalTime / 1000).toFixed(2)}
+                                    <span className="text-[10px] ml-0.5 opacity-30">
+                                      S
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="bg-black/20 p-2 rounded-xl relative overflow-hidden group">
+                                  <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/20 group-hover:bg-blue-500 transition-colors" />
+                                  <div className="text-[8px] uppercase text-gray-500 mb-1">
+                                    {t.distance}
+                                  </div>
+                                  <div className="text-sm font-black font-mono tracking-tight">
+                                    {formatDistance(run.totalDistance)}
+                                  </div>
+                                </div>
+                                <div className="bg-black/20 p-2 rounded-xl border border-gray-800/30">
+                                  <div className="text-[8px] uppercase text-gray-500 mb-1">
+                                    Peak G
+                                  </div>
+                                  <div className="text-sm font-black font-mono text-violet-400">
+                                    {run.peakG ? run.peakG.toFixed(2) : "--.--"}
+                                    <span className="text-[10px] ml-0.5 opacity-30">
+                                      G
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="bg-black/20 p-2 rounded-xl border border-gray-800/30">
+                                  <div className="text-[8px] uppercase text-gray-500 mb-1">
+                                    ACCURACY
+                                  </div>
+                                  <div className="text-sm font-black font-mono text-blue-400">
+                                    ±
+                                    {run.accuracy
+                                      ? run.accuracy.toFixed(1)
+                                      : "--.-"}
+                                    <span className="text-[10px] ml-0.5 opacity-30">
+                                      M
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <AnimatePresence>
+                                {expandedHistoryId === run.id && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="border-t border-gray-800 pt-4 mt-2">
+                                      <p className="text-[9px] uppercase font-black text-gray-500 mb-3 tracking-[0.2em]">
+                                        {t.splitsTargets.toUpperCase()}
+                                      </p>
+                                      <div className="bg-gray-950/40 rounded-2xl overflow-hidden border border-gray-800/50">
+                                        {run.splits.map((s, i) => (
+                                          <div
+                                            key={i}
+                                            className={`px-4 py-2.5 flex items-center justify-between border-b border-gray-800/30 last:border-0 ${s.time ? "bg-violet-500/[0.03]" : "opacity-40"}`}
+                                          >
+                                            <div className="flex flex-col">
+                                              <span className="text-[10px] font-black text-gray-300 uppercase italic tracking-tighter">
+                                                {s.label}
+                                              </span>
+                                              <span className="text-[8px] font-mono text-gray-600 uppercase">
+                                                {formatDistance(s.distance)}
+                                              </span>
+                                            </div>
+
+                                            <div className="flex items-center gap-6">
+                                              <div className="text-right min-w-[60px]">
+                                                <div
+                                                  className={`text-sm font-black italic tabular-nums ${s.time ? "text-white" : "text-gray-800"}`}
+                                                >
+                                                  {s.time
+                                                    ? s.time.toFixed(2)
+                                                    : "--.--"}
+                                                  <span className="text-[8px] ml-0.5 not-italic opacity-40 uppercase">
+                                                    s
+                                                  </span>
+                                                </div>
+                                              </div>
+
+                                              <div className="text-right min-w-[50px]">
+                                                <div
+                                                  className={`text-[11px] font-black font-mono italic ${s.speedAtSplit ? "text-blue-400" : "text-gray-800"}`}
+                                                >
+                                                  {s.speedAtSplit
+                                                    ? Math.round(s.speedAtSplit)
+                                                    : "---"}
+                                                  <span className="text-[7px] ml-0.5 not-italic opacity-40 uppercase">
+                                                    kph
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {view === "charts" && (
+                <motion.div
+                  key="charts"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex-1 flex flex-col gap-6 will-change-[opacity]"
+                >
+                  {/* LIVE MONITOR SECTION */}
+                  <div className="bg-gray-900/80 rounded-[2.5rem] border border-violet-500/20 p-6 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
+                    <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(139,92,246,1)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,1)_1px,transparent_1px)] bg-[size:20px_20px]" />
+
+                    <div className="flex justify-between items-center mb-6 relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-2 h-2 rounded-full ${currentSpeed > 2 ? "bg-red-500 animate-pulse shadow-[0_0_10px_red]" : "bg-gray-600"}`}
+                        />
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-violet-400 italic">
+                          Live Telemetry Monitor
+                        </h3>
+                      </div>
+                      <div className="px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-full">
+                        <span className="text-[8px] font-bold text-violet-500 uppercase flex items-center gap-1">
+                          <Signal className="w-2 h-2" /> GPS-L1 LOCKED
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="h-48 w-full relative z-10">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart
+                          data={realTimeSpeedData}
+                          margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
+                        >
+                          <defs>
+                            <linearGradient
+                              id="colorSpeedLive"
+                              x1="0"
+                              y1="0"
+                              x2="0"
+                              y2="1"
+                            >
+                              <stop
+                                offset="5%"
+                                stopColor="#8b5cf6"
+                                stopOpacity={0.3}
+                              />
+                              <stop
+                                offset="95%"
+                                stopColor="#8b5cf6"
+                                stopOpacity={0}
+                              />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="#ffffff05"
+                            vertical={true}
+                          />
+                          <XAxis dataKey="time" hide />
+                          <YAxis
+                            stroke="#ffffff10"
+                            fontSize={8}
+                            tickLine={false}
+                            axisLine={false}
+                            domain={[
+                              0,
+                              (dataMax: number) =>
+                                Math.max(
+                                  100,
+                                  Math.ceil(dataMax / 20) * 20 + 20,
+                                ),
+                            ]}
+                            tick={{
+                              fill: "#444",
+                              fontSize: 8,
+                              fontWeight: "bold",
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="speed"
+                            stroke="#8b5cf6"
+                            strokeWidth={3}
+                            fillOpacity={1}
+                            fill="url(#colorSpeedLive)"
+                            isAnimationActive={false}
+                            connectNulls={true}
+                          />
+                          {(() => {
+                            const realPoints = realTimeSpeedData.filter(
+                              (p) =>
+                                p.speed !== undefined &&
+                                !p.time.startsWith("future") &&
+                                !p.time.startsWith("init"),
+                            );
+                            const lastPoint = realPoints[realPoints.length - 1];
+                            if (!lastPoint) return null;
+                            return (
+                              <ReferenceDot
+                                x={lastPoint.time}
+                                y={lastPoint.speed}
+                                r={4}
+                                fill="#8b5cf6"
+                                stroke="#fff"
+                                strokeWidth={1}
+                                isFront={true}
+                              />
+                            );
+                          })()}
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4 mt-6">
+                      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+                        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
+                          Velocity
+                        </p>
+                        <p className="text-xl font-black text-white italic">
+                          {Math.round(currentSpeed)}{" "}
+                          <span className="text-[8px] opacity-40">KPH</span>
+                        </p>
+                      </div>
+                      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+                        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
+                          G-Force
+                        </p>
+                        <p className="text-xl font-black text-violet-400 italic">
+                          {gForce.toFixed(2)}{" "}
+                          <span className="text-[8px] opacity-40">G</span>
+                        </p>
+                      </div>
+                      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+                        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
+                          Peak-G
+                        </p>
+                        <p className="text-xl font-black text-blue-400 italic">
+                          {peakG.toFixed(2)}{" "}
+                          <span className="text-[8px] opacity-40">MAX</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DYNO RECORDS MANAGER */}
+                  <div className="bg-gray-900/60 rounded-3xl border border-violet-500/20 p-1 backdrop-blur-md overflow-hidden shadow-xl shadow-violet-500/5">
+                    <div className="bg-violet-600/20 text-violet-400 px-4 py-2 flex items-center justify-between mb-1 rounded-t-2xl">
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                        <LayoutGrid className="w-4 h-4 text-violet-500" />{" "}
+                        Records Manager
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
+                        <span className="text-[8px] font-bold text-violet-500/60 uppercase">
+                          Cloud Sync Active
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-950/40 border border-violet-500/10 overflow-hidden mx-1 mb-1 rounded-xl">
+                      <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left border-collapse min-w-[600px]">
+                          <thead>
+                            <tr className="bg-violet-950/30 border-b border-violet-500/10">
+                              <th className="px-3 py-3 w-10"></th>
+                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest">
+                                Date & Time
+                              </th>
+                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest">
+                                ID Run
+                              </th>
+                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">
+                                Max KPH
+                              </th>
+                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">
+                                Max G
+                              </th>
+                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">
+                                Dist (m)
+                              </th>
+                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">
+                                Time (s)
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-[9px] font-mono">
+                            {history.length === 0 ? (
+                              <tr className="text-gray-600 italic">
+                                <td
+                                  colSpan={7}
+                                  className="px-4 py-12 text-center bg-transparent uppercase tracking-[0.4em] opacity-30 text-[8px]"
+                                >
+                                  No records found
+                                </td>
+                              </tr>
+                            ) : (
+                              history.map((run) => (
+                                <tr
+                                  key={run.id}
+                                  className={`border-b border-violet-500/5 transition-all uppercase cursor-pointer relative group ${selectedRuns.includes(run.id) ? "bg-violet-600/15" : "hover:bg-violet-500/5"}`}
+                                  onClick={() => {
+                                    setSelectedRuns((prev) =>
+                                      prev.includes(run.id)
+                                        ? prev.filter((id) => id !== run.id)
+                                        : [...prev, run.id],
+                                    );
+                                  }}
+                                >
+                                  <td className="px-3 py-3 text-center">
+                                    {selectedRuns.includes(run.id) ? (
+                                      <div className="flex items-center justify-center">
+                                        <CheckSquare className="w-4 h-4 text-violet-400" />
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center justify-center">
+                                        <Square className="w-4 h-4 text-gray-700 group-hover:text-gray-600" />
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-3 font-bold text-gray-300">
+                                    {new Date(run.date).toLocaleString([], {
+                                      dateStyle: "short",
+                                      timeStyle: "short",
+                                    })}
+                                  </td>
+                                  <td className="px-3 py-3 text-gray-500 font-medium">
+                                    RUN_{run.id.slice(-4)}
+                                  </td>
+                                  <td className="px-3 py-3 font-black text-red-500/80 text-center text-xs italic">
+                                    {Math.round(run.maxSpeed)}
+                                  </td>
+                                  <td className="px-3 py-3 font-black text-blue-500/80 text-center text-xs italic">
+                                    {run.peakG?.toFixed(2) || "0.00"}
+                                  </td>
+                                  <td className="px-3 py-3 text-center text-gray-400">
+                                    {Math.round(run.totalDistance)}
+                                  </td>
+                                  <td className="px-3 py-3 font-black text-center text-violet-400 text-xs italic">
+                                    {(run.totalTime / 1000).toFixed(2)}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="px-4 py-2 flex justify-between items-center text-[7px] font-black text-violet-500/40 uppercase tracking-[0.2em]">
+                      <span>{history.length} OBJECTS REGISTERED</span>
+                      <span>Dyno Graph Viewer v1.0.4 PRO</span>
+                    </div>
+                  </div>
+
+                  {/* Multi-Run Dyno Graph */}
+                  <div className="bg-gray-950 rounded-3xl border border-violet-500/20 p-6 flex flex-col gap-4 relative overflow-hidden shadow-2xl shadow-black/50">
+                    <div className="absolute inset-0 pointer-events-none opacity-[0.02] bg-[linear-gradient(rgba(139,92,246,1)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,1)_1px,transparent_1px)] bg-[size:15px_15px]" />
+                    <div className="absolute top-2 right-4 flex items-center gap-4 z-20">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-0.5 bg-red-500 shadow-[0_0_5px_red]" />
+                        <span className="text-[8px] text-red-500 font-bold uppercase tracking-tighter italic">
+                          HP - SPEED
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-0.5 bg-cyan-400 shadow-[0_0_5px_cyan]" />
+                        <span className="text-[8px] text-cyan-400 font-bold uppercase tracking-tighter italic">
+                          TORQUE - ACCEL
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="h-80 w-full relative">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          margin={{ top: 20, right: 30, left: 10, bottom: 40 }}
+                          data={(() => {
+                            const selectedData = history.filter((r) =>
+                              selectedRuns.includes(r.id),
+                            );
+                            if (selectedData.length === 0) return [];
+
+                            const maxTime = Math.max(
+                              ...selectedData.map((r) => r.totalTime / 1000),
+                            );
+                            const step = 0.2;
+                            const data = [];
+
+                            const runBuckets = selectedData.map((run) => {
+                              const buckets: Record<
+                                string,
+                                { speed: number; accel: number }
+                              > = {};
+                              run.telemetry?.forEach((p) => {
+                                const b = (
+                                  Math.floor(p.time / step) * step
+                                ).toFixed(1);
+                                buckets[b] = { speed: p.speed, accel: p.accel };
+                              });
+                              return { id: run.id, buckets };
+                            });
+
+                            for (let t = 0; t <= maxTime; t += step) {
+                              const tStr = t.toFixed(1);
+                              const point: any = { time: tStr };
+                              runBuckets.forEach((rb) => {
+                                const bucket = rb.buckets[tStr];
+                                if (bucket) {
+                                  point[`speed_${rb.id}`] = bucket.speed;
+                                  point[`accel_${rb.id}`] = bucket.accel * 5;
+                                }
+                              });
+                              data.push(point);
+                            }
+                            return data;
+                          })()}
+                        >
+                          <defs>
+                            <filter
+                              id="neonRed"
+                              x="-20%"
+                              y="-20%"
+                              width="140%"
+                              height="140%"
+                            >
+                              <feGaussianBlur stdDeviation="2" result="blur" />
+                              <feComposite
+                                in="SourceGraphic"
+                                in2="blur"
+                                operator="over"
+                              />
+                            </filter>
+                            <filter
+                              id="neonCyan"
+                              x="-20%"
+                              y="-20%"
+                              width="140%"
+                              height="140%"
+                            >
+                              <feGaussianBlur stdDeviation="2" result="blur" />
+                              <feComposite
+                                in="SourceGraphic"
+                                in2="blur"
+                                operator="over"
+                              />
+                            </filter>
+                          </defs>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="#ffffff10"
+                            vertical={true}
+                          />
+                          <XAxis
+                            dataKey="time"
+                            stroke="#444"
+                            fontSize={8}
+                            tickLine={true}
+                            axisLine={true}
+                            tick={{ fill: "#666" }}
+                            label={{
+                              value: "ELAPSED TIME (S)",
+                              position: "insideBottom",
+                              offset: -10,
+                              fill: "#666",
+                              fontSize: 7,
+                              fontWeight: "bold",
+                            }}
+                          />
+                          <YAxis
+                            yAxisId="left"
+                            stroke="#ff000080"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                            domain={[0, "auto"]}
+                            tick={{
+                              fill: "#ff0000",
+                              fontSize: 9,
+                              fontWeight: "900",
+                              fontStyle: "italic",
+                            }}
+                            label={{
+                              value: "SPEED (HP/KPH)",
+                              angle: -90,
+                              position: "insideLeft",
+                              fill: "#ff444460",
+                              fontSize: 8,
+                              fontWeight: "900",
+                            }}
+                          />
+                          <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            stroke="#00ffff50"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                            domain={[0, "auto"]}
+                            tick={{
+                              fill: "#00ffff",
+                              fontSize: 9,
+                              fontWeight: "900",
+                              fontStyle: "italic",
+                            }}
+                            label={{
+                              value: "ACCEL (TORQUE/G)",
+                              angle: 90,
+                              position: "insideRight",
+                              fill: "#22d3ee60",
+                              fontSize: 8,
+                              fontWeight: "900",
+                            }}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "#000",
+                              border: "1px solid #333",
+                              borderRadius: "4px",
+                              padding: "10px",
+                            }}
+                            labelStyle={{
+                              color: "#fff",
+                              fontSize: "10px",
+                              fontWeight: "bold",
+                              marginBottom: "5px",
+                            }}
+                            itemStyle={{
+                              fontSize: "9px",
+                              fontWeight: "black",
+                              padding: "0px",
+                            }}
+                            cursor={{
+                              stroke: "#ffffff30",
+                              strokeDasharray: "5 5",
+                            }}
+                            formatter={(val: any, name: string) => {
+                              const isAccel = name.includes("accel");
+                              const runId = name.split("_")[1];
+                              const label = `RUN_${runId.slice(-4)} (${isAccel ? "G" : "KPH"})`;
+                              return [Math.round(val * 100) / 100, label];
+                            }}
+                          />
+                          {/* Splitting the map to ensure Recharts sees the components directly */}
+                          {history
+                            .filter((r) => selectedRuns.includes(r.id))
+                            .map((run, idx) => (
+                              <Line
+                                key={`speed_${run.id}`}
+                                yAxisId="left"
+                                type="monotone"
+                                dataKey={`speed_${run.id}`}
+                                stroke="#ff0000"
+                                strokeWidth={2}
+                                strokeOpacity={idx === 0 ? 1 : 0.4}
+                                dot={false}
+                                activeDot={{
+                                  r: 4,
+                                  stroke: "#fff",
+                                  strokeWidth: 2,
+                                }}
+                                animationDuration={500}
+                                connectNulls
+                                filter="url(#neonRed)"
+                              />
+                            ))}
+                          {history
+                            .filter((r) => selectedRuns.includes(r.id))
+                            .map((run, idx) => (
+                              <Line
+                                key={`accel_${run.id}`}
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey={`accel_${run.id}`}
+                                stroke="#00ffff"
+                                strokeWidth={2}
+                                strokeOpacity={idx === 0 ? 1 : 0.4}
+                                dot={false}
+                                activeDot={false}
+                                animationDuration={800}
+                                connectNulls
+                                filter="url(#neonCyan)"
+                              />
+                            ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {selectedRuns.length === 0 && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10">
+                        <Activity className="w-12 h-12 text-gray-800 mb-4 animate-pulse" />
+                        <p className="text-[10px] font-black italic text-gray-500 uppercase tracking-[0.3em]">
+                          Select runs from table to compare data
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {view === "settings" && (
+                <motion.div
+                  key="settings"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex-1 flex flex-col gap-6 will-change-[opacity]"
+                >
+                  <section className="bg-gray-900/60 rounded-3xl border border-gray-800 p-6">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center gap-2">
+                      <Gauge className="w-4 h-4" /> {t.language}
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(["id", "en", "th", "vi", "ms"] as Language[]).map(
+                        (l) => (
+                          <button
+                            key={l}
+                            onClick={() => setLang(l)}
+                            className={`px-4 py-3 rounded-xl border flex items-center justify-between transition-all ${lang === l ? "bg-violet-500 border-violet-400 text-white shadow-lg" : "bg-gray-950 border-gray-800 text-gray-500 hover:border-gray-700"}`}
+                          >
+                            <span className="text-xs font-bold uppercase tracking-wider">
+                              {l === "id"
+                                ? "Indonesia"
+                                : l === "en"
+                                  ? "English"
+                                  : l === "th"
+                                    ? "Thailand"
+                                    : l === "vi"
+                                      ? "Vietnam"
+                                      : "Malaysia"}
+                            </span>
+                            {lang === l && (
+                              <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                            )}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="bg-gray-900/60 rounded-3xl border border-gray-800 p-6">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center gap-2">
+                      <Settings className="w-4 h-4" /> {t.config}
+                    </h3>
+
+                    <div className="space-y-4">
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                          {t.templates}
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => setSelectedTargets(DEFAULT_TARGETS)}
+                            className="px-3 py-1.5 rounded-lg bg-gray-800 text-[10px] font-bold hover:bg-violet-500 transition-colors uppercase"
+                          >
+                            {t.reset}
+                          </button>
                         </div>
                       </div>
 
-                      <div className="border-t border-gray-800 pt-3">
-                        <p className="text-[9px] uppercase font-bold text-gray-500 mb-2 tracking-widest">{t.details}</p>
-                        <div className="grid grid-cols-3 gap-2">
-                          {run.splits.filter(s => s.time).map((s, i) => (
-                            <div key={i} className="text-center bg-gray-950/50 p-2 rounded-xl border border-gray-800">
-                              <p className="text-[8px] text-gray-500 font-bold mb-1">{s.label}</p>
-                              <p className="text-sm font-black text-white italic leading-none">{s.time?.toFixed(2)}s</p>
-                              {s.speedAtSplit && (
-                                <p className="text-[9px] font-bold text-blue-400 italic mt-1">{Math.round(s.speedAtSplit)} kph</p>
+                      <div className="border-t border-gray-800 pt-4 mt-4">
+                        <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider mb-3 block">
+                          {t.myTargets}
+                        </label>
+                        <div className="space-y-2">
+                          {selectedTargets.map((target, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-2 bg-gray-950/80 p-3 rounded-xl border border-gray-800"
+                            >
+                              <input
+                                type="text"
+                                value={target.label}
+                                onChange={(e) => {
+                                  const newTargets = [...selectedTargets];
+                                  newTargets[idx].label = e.target.value;
+                                  setSelectedTargets(newTargets);
+                                }}
+                                className="bg-transparent border-none focus:ring-0 text-sm font-bold w-full"
+                              />
+                              <input
+                                type="number"
+                                value={target.distance}
+                                onChange={(e) => {
+                                  const newTargets = [...selectedTargets];
+                                  newTargets[idx].distance = parseFloat(
+                                    e.target.value,
+                                  );
+                                  setSelectedTargets(newTargets);
+                                }}
+                                className="bg-transparent border-none focus:ring-0 text-sm font-mono text-violet-400 text-right w-24"
+                              />
+                              <span className="text-[10px] text-gray-600 font-bold">
+                                M
+                              </span>
+                              <button
+                                onClick={() =>
+                                  setSelectedTargets(
+                                    selectedTargets.filter((_, i) => i !== idx),
+                                  )
+                                }
+                                className="text-gray-600 hover:text-red-500 p-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+
+                          <button
+                            onClick={() =>
+                              setSelectedTargets([
+                                ...selectedTargets,
+                                { distance: 1000, label: "Custom" },
+                              ])
+                            }
+                            className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-800 rounded-xl text-[10px] font-bold text-gray-500 hover:text-violet-500 hover:border-violet-500/50 transition-all uppercase"
+                          >
+                            <Plus className="w-3 h-3" /> {t.addTarget}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {currentUser?.role === "admin" && (
+                    <section className="bg-gray-900/60 rounded-3xl border border-violet-500/30 p-6 shadow-xl shadow-violet-500/5">
+                      <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center gap-2">
+                        <UserPlus className="w-4 h-4" /> {t.adminPanel}
+                      </h3>
+
+                      <form
+                        onSubmit={handleCreateCustomer}
+                        className="space-y-4 mb-8"
+                      >
+                        <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-4">
+                          {t.createAccount}
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <input
+                            type="text"
+                            placeholder={t.username}
+                            value={newCustomerForm.username}
+                            onChange={(e) =>
+                              setNewCustomerForm((prev) => ({
+                                ...prev,
+                                username: e.target.value,
+                              }))
+                            }
+                            className="bg-gray-950/80 border border-gray-800 rounded-xl p-3 text-xs font-bold focus:border-violet-500/50"
+                          />
+                          <input
+                            type="text"
+                            placeholder={t.password}
+                            value={newCustomerForm.password}
+                            onChange={(e) =>
+                              setNewCustomerForm((prev) => ({
+                                ...prev,
+                                password: e.target.value,
+                              }))
+                            }
+                            className="bg-gray-950/80 border border-gray-800 rounded-xl p-3 text-xs font-bold focus:border-violet-500/50"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 p-1 bg-gray-950 rounded-xl border border-gray-800">
+                          {(["customer", "admin"] as const).map((r) => (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() =>
+                                setNewCustomerForm((prev) => ({
+                                  ...prev,
+                                  role: r,
+                                }))
+                              }
+                              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${newCustomerForm.role === r ? "bg-violet-500 text-white shadow-lg" : "text-gray-600 hover:text-gray-400"}`}
+                            >
+                              {r === "admin" ? (
+                                <Shield className="w-3 h-3" />
+                              ) : (
+                                <UserIcon className="w-3 h-3" />
                               )}
+                              {r === "customer" ? "MEMBER" : r}
+                            </button>
+                          ))}
+                        </div>
+
+                        {adminMessage && (
+                          <div
+                            className={`text-[9px] font-black uppercase text-center py-2 rounded-lg ${adminMessage === t.userCreated ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"}`}
+                          >
+                            {adminMessage}
+                          </div>
+                        )}
+                        <button
+                          type="submit"
+                          className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-3 rounded-xl shadow-lg shadow-violet-600/20 transition-all text-[10px] uppercase tracking-widest"
+                        >
+                          {t.createAccount}
+                        </button>
+                      </form>
+
+                      <div className="border-t border-gray-800 pt-6">
+                        <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-4">
+                          {t.userList}
+                        </p>
+                        <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                          {users.map((u, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center justify-between p-3 bg-gray-950/50 rounded-xl border border-gray-800/50"
+                            >
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={`w-2 h-2 rounded-full ${u.role === "admin" ? "bg-violet-500 shadow-[0_0_5px_rgba(139,92,246,0.5)]" : "bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]"}`}
+                                  />
+                                  <span className="text-xs font-bold">
+                                    {u.username}
+                                  </span>
+                                </div>
+                                {u.role === "customer" && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <span
+                                      className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded ${u.boundDeviceId ? "bg-violet-500/10 text-violet-400" : "bg-gray-800 text-gray-500"}`}
+                                    >
+                                      {u.boundDeviceId
+                                        ? `${t.deviceBound}: ${u.boundDeviceId}`
+                                        : t.notBound}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {u.role === "customer" && u.boundDeviceId && (
+                                  <button
+                                    onClick={() =>
+                                      handleResetDevice(u.username)
+                                    }
+                                    className="text-violet-500 hover:text-violet-400 transition-colors bg-violet-500/10 p-1.5 rounded-lg border border-violet-500/20 active:scale-95"
+                                    title={t.resetDevice}
+                                  >
+                                    <Activity className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <span
+                                  className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${u.role === "admin" ? "bg-violet-500/20 text-violet-400" : "bg-blue-500/20 text-blue-400"}`}
+                                >
+                                  {u.role === "customer"
+                                    ? "MEMBER DRAG RACE"
+                                    : u.role}
+                                </span>
+                                {u.username !== "Admin" &&
+                                  u.username !== currentUser?.username && (
+                                    <button
+                                      onClick={() =>
+                                        handleDeleteUser(u.username)
+                                      }
+                                      className="text-gray-600 hover:text-red-500 transition-colors p-1"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                              </div>
                             </div>
                           ))}
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          )}
+                    </section>
+                  )}
 
-          {view === 'charts' && (
-            <motion.div
-              key="charts"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="flex-1 flex flex-col gap-6 will-change-[opacity]"
-            >
-              <div className="bg-gray-900/60 rounded-3xl border border-gray-800 p-6 flex flex-col gap-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 flex items-center gap-2">
-                    <Activity className="w-4 h-4" /> {t.charts}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                    <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Live Speed Feed</div>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="h-64 w-full bg-black/40 rounded-[2rem] p-4 border border-gray-800/50 relative overflow-hidden">
-                    <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(139,92,246,1)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,1)_1px,transparent_1px)] bg-[size:15px_15px]" />
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart
-                        data={realTimeSpeedData.length > 0 ? realTimeSpeedData : [{ time: '', speed: 0 }]}
-                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                      >
-                        <defs>
-                          <linearGradient id="colorSpeed" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.5}/>
-                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 4" stroke="#222" vertical={false} />
-                        <XAxis 
-                          dataKey="time" 
-                          stroke="#444" 
-                          fontSize={8} 
-                          tickLine={false}
-                          axisLine={false}
-                          hide={realTimeSpeedData.length === 0}
-                        />
-                        <YAxis 
-                          stroke="#666" 
-                          fontSize={10} 
-                          tickLine={false}
-                          axisLine={false}
-                          unit="kph"
-                          domain={[0, 'auto']}
-                        />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#000', border: '1px solid #8b5cf633', borderRadius: '12px', fontSize: '9px', fontFamily: 'monospace' }}
-                          itemStyle={{ color: '#8b5cf6', padding: '2px 0' }}
-                          labelStyle={{ color: '#444' }}
-                          cursor={{ stroke: '#8b5cf644', strokeWidth: 2 }}
-                        />
-                        <Area 
-                          type="stepAfter" 
-                          dataKey="speed" 
-                          stroke="#8b5cf6" 
-                          strokeWidth={3}
-                          fillOpacity={1} 
-                          fill="url(#colorSpeed)" 
-                          isAnimationActive={false}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-950/50 p-4 rounded-2xl border border-gray-800">
-                      <p className="text-[9px] text-gray-500 font-bold uppercase mb-1 tracking-widest">Current</p>
-                      <p className="text-2xl font-black text-white italic">{Math.round(currentSpeed)} <span className="text-xs text-gray-500">KPH</span></p>
-                    </div>
-                    <div className="bg-gray-950/50 p-4 rounded-2xl border border-gray-800">
-                      <p className="text-[9px] text-gray-500 font-bold uppercase mb-1 tracking-widest">Status</p>
-                      <p className={`text-2xl font-black italic ${currentSpeed > 5 ? 'text-green-500' : 'text-gray-600'}`}>
-                        {currentSpeed > 5 ? 'ACTIVE' : 'IDLE'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="bg-violet-500/5 border border-violet-500/10 rounded-2xl p-4">
-                    <p className="text-[10px] text-gray-400 leading-relaxed italic uppercase tracking-wider text-center">
-                      Real-time telemetry streaming enabled
+                  <div className="bg-violet-500/10 border border-violet-500/20 rounded-2xl p-4 flex gap-3">
+                    <Info className="w-5 h-5 text-violet-500 shrink-0" />
+                    <p className="text-[10px] text-violet-200/70 leading-relaxed font-medium uppercase tracking-wider">
+                      Always ensure clear sky view for best results
                     </p>
                   </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
 
-          {view === 'obd2' && (
-            <motion.div
-              key="obd2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="flex-1 flex flex-col gap-6 will-change-[opacity]"
-            >
-              <div className="bg-gray-900/60 rounded-3xl border border-gray-800 p-6 flex flex-col gap-8">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 flex items-center gap-2">
-                    <Cpu className="w-4 h-4" /> {t.obdScanner}
-                  </h3>
-                  <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${obdConnected ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-gray-800 border-gray-700 text-gray-500'}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${obdConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-600'}`} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">{obdConnected ? 'CONNECTED' : 'DISCONNECTED'}</span>
-                  </div>
-                </div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center gap-3 p-5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-3xl text-sm font-black uppercase hover:bg-red-500 hover:text-white transition-all active:scale-95 shadow-lg shadow-red-500/5 mt-2"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    {t.signOut}
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-                {!obdConnected ? (
-                   <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
-                      <div className="w-20 h-20 bg-gray-950 rounded-full flex items-center justify-center border border-gray-800 mb-6 group relative">
-                         <div className="absolute inset-0 bg-violet-600/10 blur-2xl rounded-full" />
-                         <BluetoothOff className="w-10 h-10 text-gray-700" />
-                      </div>
-                      <p className="text-xs text-gray-500 uppercase font-bold tracking-widest mb-8 max-w-[200px]">
-                        {t.obdInfo}
-                      </p>
-                      <button 
-                        onClick={connectOBD}
-                        disabled={isObdConnecting}
-                        className="bg-violet-600 hover:bg-violet-500 text-white font-black py-4 px-10 rounded-2xl text-xs italic tracking-widest shadow-xl shadow-violet-600/20 flex items-center gap-3 active:scale-95 transition-all disabled:opacity-50"
+            {/* Delete User Confirmation Modal */}
+            <AnimatePresence>
+              {userToDelete && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md"
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                    className="bg-gray-900 border border-red-500/30 rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl shadow-red-500/10 text-center relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent" />
+
+                    <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+                      <Trash2 className="w-8 h-8 text-red-500" />
+                    </div>
+
+                    <h2 className="text-xl font-black italic text-white mb-4 tracking-tighter uppercase">
+                      {TRANSLATIONS[lang].deleteUser}
+                    </h2>
+
+                    <p className="text-sm text-gray-400 leading-relaxed mb-8 font-medium italic">
+                      "{userToDelete}"
+                    </p>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setUserToDelete(null)}
+                        className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-4 rounded-2xl transition-all text-xs uppercase tracking-widest italic"
                       >
-                        {isObdConnecting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Bluetooth className="w-4 h-4" />}
-                        {t.connectOBD.toUpperCase()}
+                        Cancel
                       </button>
-                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-6">
-                    {/* Big RPM Gauge */}
-                    <div className="bg-gray-950 p-8 rounded-[2.5rem] border border-gray-800 flex flex-col items-center justify-center relative overflow-hidden">
-                       <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/5 blur-3xl -mr-16 -mt-16" />
-                       <div className="text-[10px] font-mono text-violet-500 mb-2 tracking-[0.2em] uppercase">{t.rpm}</div>
-                       <div className="flex items-baseline gap-2">
-                         <span className="text-7xl font-black italic tracking-tighter text-white tabular-nums drop-shadow-[0_0_15px_rgba(139,92,246,0.3)]">
-                           {Math.round(obdRPM)}
-                         </span>
-                       </div>
-                       <div className="w-full h-2 bg-gray-900 rounded-full mt-6 overflow-hidden max-w-[240px]">
-                         <motion.div 
-                            className="h-full bg-gradient-to-r from-violet-500 to-red-500 shadow-[0_0_10px_rgba(139,92,246,0.5)]"
-                            animate={{ width: `${Math.min((obdRPM / 8000) * 100, 100)}%` }}
-                         />
-                       </div>
+                      <button
+                        onClick={confirmDeleteUser}
+                        className="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-red-600/20 transition-all text-xs uppercase tracking-widest italic"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Footer info */}
+            <footer className="mt-8 text-center pb-8 opacity-30">
+              <p className="text-[8px] font-mono tracking-[0.3em] uppercase">
+                Built for Performance • L.A Tech Division
+              </p>
+            </footer>
+
+            {/* Warning Popup */}
+            <AnimatePresence>
+              {showWarning && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md"
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                    className="bg-gray-900 border border-violet-500/30 rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl shadow-violet-500/10 text-center relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+
+                    <div className="w-16 h-16 bg-violet-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-violet-500/20">
+                      <AlertTriangle className="w-8 h-8 text-violet-500" />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                       <div className="bg-gray-950 p-4 rounded-3xl border border-gray-800">
-                          <div className="text-[8px] font-bold text-gray-600 uppercase mb-2 tracking-widest">{t.coolant}</div>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-black italic text-gray-300">{Math.round(obdCoolant)}</span>
-                            <span className="text-[10px] text-gray-600">°C</span>
-                          </div>
-                          <div className="mt-3 w-full h-1 bg-gray-900 rounded-full overflow-hidden">
-                             <div className="h-full bg-blue-500" style={{ width: `${Math.min((obdCoolant / 120) * 100, 100)}%` }} />
-                          </div>
-                       </div>
-                       <div className="bg-gray-950 p-4 rounded-3xl border border-gray-800">
-                          <div className="text-[8px] font-bold text-gray-600 uppercase mb-2 tracking-widest">{t.engineLoad}</div>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-black italic text-gray-300">{Math.round(obdLoad)}</span>
-                            <span className="text-[10px] text-gray-600">%</span>
-                          </div>
-                       </div>
-                    </div>
+                    <h2 className="text-xl font-black italic text-white mb-4 tracking-tighter uppercase">
+                      {t.warningTitle}
+                    </h2>
 
-                    <div className="bg-gray-950 p-6 rounded-3xl border border-gray-800">
-                       <div className="flex justify-between items-center mb-4">
-                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{t.throttle}</span>
-                          <span className="text-lg font-black text-violet-400 italic">{Math.round(obdThrottle)}%</span>
-                       </div>
-                       <div className="w-full h-3 bg-gray-900 rounded-full overflow-hidden p-0.5">
-                          <motion.div 
-                             className="h-full bg-violet-500 rounded-full"
-                             animate={{ width: `${obdThrottle}%` }}
-                          />
-                       </div>
-                    </div>
+                    <p className="text-sm text-gray-400 leading-relaxed mb-8 font-medium italic">
+                      "{t.warningMessage}"
+                    </p>
 
-                    <button 
-                      onClick={disconnectOBD}
-                      className="mt-4 border border-red-500/20 text-red-500 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest italic flex items-center justify-center gap-2 hover:bg-red-500/10 transition-colors"
-                    >
-                      <BluetoothOff className="w-3.5 h-3.5" />
-                      {t.disconnectOBD}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-
-          {view === 'settings' && (
-            <motion.div 
-              key="settings"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="flex-1 flex flex-col gap-6 will-change-[opacity]"
-            >
-              <section className="bg-gray-900/60 rounded-3xl border border-gray-800 p-6">
-                 <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center gap-2">
-                  <Gauge className="w-4 h-4" /> {t.language}
-                </h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['id', 'en', 'th', 'vi', 'ms'] as Language[]).map((l) => (
                     <button
-                      key={l}
-                      onClick={() => setLang(l)}
-                      className={`px-4 py-3 rounded-xl border flex items-center justify-between transition-all ${lang === l ? 'bg-violet-500 border-violet-400 text-white shadow-lg' : 'bg-gray-950 border-gray-800 text-gray-500 hover:border-gray-700'}`}
+                      onClick={() => setShowWarning(false)}
+                      className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-violet-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest italic"
                     >
-                      <span className="text-xs font-bold uppercase tracking-wider">{l === 'id' ? 'Indonesia' : l === 'en' ? 'English' : l === 'th' ? 'Thailand' : l === 'vi' ? 'Vietnam' : 'Malaysia'}</span>
-                      {lang === l && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                      {t.next}
+                      <ChevronRight className="w-4 h-4" />
                     </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="bg-gray-900/60 rounded-3xl border border-gray-800 p-6">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center gap-2">
-                  <Settings className="w-4 h-4" /> {t.config}
-                </h3>
-                
-                <div className="space-y-4">
-                   <div className="flex flex-col gap-2">
-                    <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">{t.templates}</label>
-                    <div className="flex flex-wrap gap-2">
-                      <button 
-                        onClick={() => setSelectedTargets(DEFAULT_TARGETS)}
-                        className="px-3 py-1.5 rounded-lg bg-gray-800 text-[10px] font-bold hover:bg-violet-500 transition-colors uppercase"
-                      >
-                        {t.reset}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-gray-800 pt-4 mt-4">
-                    <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider mb-3 block">{t.myTargets}</label>
-                    <div className="space-y-2">
-                      {selectedTargets.map((target, idx) => (
-                        <div key={idx} className="flex items-center gap-2 bg-gray-950/80 p-3 rounded-xl border border-gray-800">
-                          <input 
-                            type="text" 
-                            value={target.label}
-                            onChange={(e) => {
-                              const newTargets = [...selectedTargets];
-                              newTargets[idx].label = e.target.value;
-                              setSelectedTargets(newTargets);
-                            }}
-                            className="bg-transparent border-none focus:ring-0 text-sm font-bold w-full"
-                          />
-                          <input 
-                            type="number" 
-                            value={target.distance}
-                            onChange={(e) => {
-                              const newTargets = [...selectedTargets];
-                              newTargets[idx].distance = parseFloat(e.target.value);
-                              setSelectedTargets(newTargets);
-                            }}
-                            className="bg-transparent border-none focus:ring-0 text-sm font-mono text-violet-400 text-right w-24"
-                          />
-                          <span className="text-[10px] text-gray-600 font-bold">M</span>
-                          <button 
-                            onClick={() => setSelectedTargets(selectedTargets.filter((_, i) => i !== idx))}
-                            className="text-gray-600 hover:text-red-500 p-1"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                      
-                      <button 
-                        onClick={() => setSelectedTargets([...selectedTargets, { distance: 1000, label: 'Custom' }])}
-                        className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-800 rounded-xl text-[10px] font-bold text-gray-500 hover:text-violet-500 hover:border-violet-500/50 transition-all uppercase"
-                      >
-                        <Plus className="w-3 h-3" /> {t.addTarget}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <div className="bg-violet-500/10 border border-violet-500/20 rounded-2xl p-4 flex gap-3">
-                <Info className="w-5 h-5 text-violet-500 shrink-0" />
-                <p className="text-[10px] text-violet-200/70 leading-relaxed font-medium uppercase tracking-wider">
-                  Always ensure clear sky view for best results
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Footer info */}
-        <footer className="mt-8 text-center pb-8 opacity-30">
-          <p className="text-[8px] font-mono tracking-[0.3em] uppercase">Built for Performance • L.A Tech Division</p>
-        </footer>
-      </main>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.main>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
