@@ -45,6 +45,7 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   ShieldAlert,
+  Edit2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -1097,13 +1098,95 @@ export default function App() {
     }
   };
 
+  const [userToEdit, setUserToEdit] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState<User>({ username: "", password: "", role: "customer" });
+
+  const handleRenameUser = async (oldUsername: string, newData: User) => {
+    try {
+      setAdminMessage(`Renaming ${oldUsername}...`);
+      const oldLower = oldUsername.toLowerCase();
+      const newLower = newData.username.toLowerCase();
+
+      // 1. Check if new username exists
+      if (oldLower !== newLower) {
+        const newSnap = await getDoc(doc(db, "users", newLower));
+        if (newSnap.exists()) throw new Error("Target username exists");
+      }
+
+      // 2. Fetch all runs from old user
+      const runsRef = collection(db, "users", oldLower, "runs");
+      const runsSnap = await getDocs(runsRef);
+      const runsData = runsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // 3. Create new user doc
+      await setDoc(doc(db, "users", newLower), newData);
+
+      // 4. Migrate runs
+      if (runsData.length > 0) {
+        const batch = writeBatch(db);
+        for (const run of runsData) {
+          const { id, ...data } = run;
+          batch.set(doc(db, "users", newLower, "runs", id), data);
+        }
+        await batch.commit();
+
+        // 5. Delete old runs
+        const deleteBatch = writeBatch(db);
+        runsSnap.docs.forEach(d => deleteBatch.delete(d.ref));
+        await deleteBatch.commit();
+      }
+
+      // 6. Delete old user doc
+      await deleteDoc(doc(db, "users", oldLower));
+
+      // 7. Update local state
+      setUsers(prev => prev.map(u => u.username === oldUsername ? newData : u));
+      if (currentUser?.username === oldUsername) {
+        setCurrentUser(newData);
+        localStorage.setItem("race_user", JSON.stringify(newData));
+      }
+
+      setAdminMessage("User updated and migrated");
+      setUserToEdit(null);
+    } catch (err: any) {
+      console.error(err);
+      setAdminMessage(err.message || "Update failed");
+    }
+    setTimeout(() => setAdminMessage(""), 3000);
+  };
+
+  const handleUpdateUserDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userToEdit) return;
+
+    if (editForm.username !== userToEdit.username) {
+      await handleRenameUser(userToEdit.username, editForm);
+    } else {
+      try {
+        await setDoc(doc(db, "users", editForm.username.toLowerCase()), editForm, { merge: true });
+        setUsers(prev => prev.map(u => u.username === userToEdit.username ? editForm : u));
+        if (currentUser?.username === userToEdit.username) {
+          setCurrentUser(editForm);
+          localStorage.setItem("race_user", JSON.stringify(editForm));
+        }
+        setAdminMessage("User updated");
+        setUserToEdit(null);
+      } catch (err) {
+        setAdminMessage("Update failed");
+      }
+      setTimeout(() => setAdminMessage(""), 3000);
+    }
+  };
+
   const handleDeleteUser = (username: string) => {
     const lowerName = username.toLowerCase();
-    if (lowerName === "atmin") return; // Protect main owner
-    if (lowerName === currentUser?.username.toLowerCase()) return; // Protect self
-
-    // Security check: Admins cannot delete other admins or the owner
+    
+    // Security check: Only owner can delete admins or other owners
     const targetUser = users.find(u => u.username.toLowerCase() === lowerName);
+    
+    if (targetUser?.role === "owner" && lowerName === "atmin") return; // Primary safety
+    if (lowerName === currentUser?.username.toLowerCase()) return; // Protect self
+    
     if (targetUser && (targetUser.role === "admin" || targetUser.role === "owner") && currentUser?.role !== "owner") {
       setAdminMessage("Only owner can delete admins");
       setTimeout(() => setAdminMessage(""), 3000);
@@ -3289,6 +3372,46 @@ export default function App() {
                         </button>
                       </form>
 
+                      {userToEdit && (
+                        <div className="mb-8 p-6 bg-violet-600/10 border border-violet-500/30 rounded-3xl animate-in fade-in slide-in-from-top-4 duration-300">
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400 mb-4 flex items-center gap-2">
+                             <Edit2 className="w-3 h-3" /> Editing {userToEdit.username}
+                          </h4>
+                          <form onSubmit={handleUpdateUserDetails} className="space-y-3">
+                            <input 
+                              type="text" 
+                              value={editForm.username}
+                              onChange={(e) => setEditForm({...editForm, username: e.target.value})}
+                              placeholder="New Username"
+                              className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm"
+                            />
+                            <input 
+                              type="password" 
+                              value={editForm.password}
+                              onChange={(e) => setEditForm({...editForm, password: e.target.value})}
+                              placeholder="New Password"
+                              className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm"
+                            />
+                            <div className="flex gap-2">
+                              <button 
+                                type="submit"
+                                className="flex-1 bg-violet-600 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest"
+                              >Save Changes</button>
+                              <button 
+                                type="button"
+                                onClick={() => setUserToEdit(null)}
+                                className="px-4 bg-gray-800 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest"
+                              >Cancel</button>
+                            </div>
+                            {editForm.username !== userToEdit.username && (
+                              <p className="text-[9px] text-amber-500 font-bold italic text-center">
+                                * Changing username will migrate all race history
+                              </p>
+                            )}
+                          </form>
+                        </div>
+                      )}
+
                       <div className="border-t border-gray-800 pt-6">
                         <div className="space-y-4 mb-4">
                           <div className="flex items-center justify-between">
@@ -3379,44 +3502,55 @@ export default function App() {
                                 )}
                               </div>
                               <div className="flex items-center gap-2 ml-4">
-                                {u.username.toLowerCase() !== "atmin" &&
-                                  u.username !== currentUser?.username &&
-                                  (currentUser?.role === "owner" || u.role === "customer") && (
-                                    <div className="flex gap-1 items-center">
-                                      {currentUser?.role === "owner" && u.boundDeviceId && (
-                                        <button
-                                          onClick={() => handleResetDevice(u.username)}
-                                          title="Force Unbind Device"
-                                          className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-white transition-all border border-amber-500/20 active:scale-95"
-                                        >
-                                          <Smartphone className="w-3 h-3" />
-                                        </button>
-                                      )}
-                                      {currentUser?.role === "owner" && (history[u.username]?.length || 0) > 0 && (
-                                        <button
-                                          onClick={async () => {
-                                            if (window.confirm(`Wipe all history for ${u.username}?`)) {
-                                              try {
-                                                const runsRef = collection(db, "users", u.username.toLowerCase(), "runs");
-                                                const snap = await getDocs(runsRef);
-                                                const batch = writeBatch(db);
-                                                snap.docs.forEach(docSnap => batch.delete(docSnap.ref));
-                                                await batch.commit();
-                                                setAdminMessage(`History wiped for ${u.username}`);
-                                                setTimeout(() => setAdminMessage(""), 3000);
-                                              } catch (err) {
-                                                console.error(err);
-                                                setAdminMessage("Error wiping history");
-                                                setTimeout(() => setAdminMessage(""), 3000);
-                                              }
+                                {(currentUser?.role === "owner" || (u.username !== currentUser?.username && u.role === "customer")) && (
+                                  <div className="flex gap-1 items-center">
+                                    {currentUser?.role === "owner" && (
+                                      <button
+                                        onClick={() => {
+                                          setUserToEdit(u);
+                                          setEditForm(u);
+                                        }}
+                                        title="Edit User Credentials"
+                                        className="p-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500 text-blue-500 hover:text-white transition-all border border-blue-500/20 active:scale-95"
+                                      >
+                                        <Edit2 className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    {currentUser?.role === "owner" && u.boundDeviceId && (
+                                      <button
+                                        onClick={() => handleResetDevice(u.username)}
+                                        title="Force Unbind Device"
+                                        className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-white transition-all border border-amber-500/20 active:scale-95"
+                                      >
+                                        <Smartphone className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    {currentUser?.role === "owner" && (history[u.username]?.length || 0) > 0 && (
+                                      <button
+                                        onClick={async () => {
+                                          if (window.confirm(`Wipe all history for ${u.username}?`)) {
+                                            try {
+                                              const runsRef = collection(db, "users", u.username.toLowerCase(), "runs");
+                                              const snap = await getDocs(runsRef);
+                                              const batch = writeBatch(db);
+                                              snap.docs.forEach(docSnap => batch.delete(docSnap.ref));
+                                              await batch.commit();
+                                              setAdminMessage(`History wiped for ${u.username}`);
+                                              setTimeout(() => setAdminMessage(""), 3000);
+                                            } catch (err) {
+                                              console.error(err);
+                                              setAdminMessage("Error wiping history");
+                                              setTimeout(() => setAdminMessage(""), 3000);
                                             }
-                                          }}
-                                          title="Wipe History"
-                                          className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all border border-red-500/20 active:scale-95"
-                                        >
-                                          <Database className="w-3 h-3" />
-                                        </button>
-                                      )}
+                                          }
+                                        }}
+                                        title="Wipe History"
+                                        className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all border border-red-500/20 active:scale-95"
+                                      >
+                                        <Database className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    {u.username.toLowerCase() !== "atmin" && u.username !== currentUser?.username && (
                                       <button
                                         onClick={() => handleDeleteUser(u.username)}
                                         title="Delete User"
@@ -3424,8 +3558,9 @@ export default function App() {
                                       >
                                         <Trash2 className="w-3 h-3" />
                                       </button>
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
+                                )}
                                 <span
                                   className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${u.role === "owner" ? "bg-amber-500/20 text-amber-400" : u.role === "admin" ? "bg-violet-500/20 text-violet-400" : "bg-blue-500/20 text-blue-400"}`}
                                 >
