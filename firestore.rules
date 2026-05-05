@@ -29,8 +29,14 @@ service cloud.firestore {
       allow get: if true;
     }
 
-    // System configuration (Broadcast)
-    match /system/broadcast {
+    // System configuration (Broadcast, Config)
+    match /system/{configItem} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Audit Logs
+    match /system_logs/{logId} {
       allow read: if true;
       allow write: if true;
     }

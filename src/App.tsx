@@ -46,6 +46,9 @@ import {
   ArrowDownCircle,
   ShieldAlert,
   Edit2,
+  Lock,
+  Settings2,
+  ListRestart,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -74,7 +77,11 @@ import {
   where, 
   deleteDoc, 
   getDocFromServer,
-  writeBatch
+  writeBatch,
+  orderBy,
+  limit,
+  addDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 
 enum OperationType {
@@ -749,6 +756,9 @@ export default function App() {
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "owner" | "admin" | "customer">("all");
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [systemName, setSystemName] = useState("DRAG RACE");
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [hasAgreedToSafety, setHasAgreedToSafety] = useState(() => localStorage.getItem('race_safety_agreed') === 'true');
   const wakeLockRef = useRef<any>(null);
@@ -762,6 +772,64 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  // --- Settings & Audit Sync ---
+  useEffect(() => {
+    const unsubSettings = onSnapshot(doc(db, "system", "config"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setMaintenanceMode(data.maintenanceMode || false);
+        setSystemName(data.systemName || "DRAG RACE");
+      }
+    });
+
+    const unsubLogs = onSnapshot(
+      query(collection(db, "system_logs"), orderBy("timestamp", "desc"), limit(20)),
+      (snap) => {
+        setAuditLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+    );
+
+    return () => {
+      unsubSettings();
+      unsubLogs();
+    };
+  }, []);
+
+  const logAction = async (action: string, detail: string) => {
+    try {
+      await addDoc(collection(db, "system_logs"), {
+        action,
+        detail,
+        user: currentUser?.username || "Unknown",
+        timestamp: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("Logging error:", err);
+    }
+  };
+
+  const toggleMaintenance = async () => {
+    try {
+      await setDoc(doc(db, "system", "config"), { maintenanceMode: !maintenanceMode }, { merge: true });
+      logAction("MAINTENANCE_TOGGLE", `Set to ${!maintenanceMode}`);
+      setAdminMessage(`Maintenance ${!maintenanceMode ? 'Enabled' : 'Disabled'}`);
+      setTimeout(() => setAdminMessage(""), 3000);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const updateSystemName = async (name: string) => {
+    try {
+      await setDoc(doc(db, "system", "config"), { systemName: name }, { merge: true });
+      logAction("BRANDING_UPDATE", `System name changed to ${name}`);
+      setAdminMessage("Branding updated");
+      setTimeout(() => setAdminMessage(""), 3000);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const updateBroadcast = async (msg: string) => {
     try {
@@ -3236,8 +3304,33 @@ export default function App() {
                           <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
                             <p className="text-[10px] text-gray-500 uppercase font-black mb-1">System Race Logs</p>
                             <p className="text-2xl font-black text-violet-400 leading-none">
-                              {users.reduce((acc, u) => acc + (history[u.username]?.length || 0), 0)}
+                              {users.reduce((acc, u) => {
+                                const userHistory = (history as any)[u.username] || [];
+                                return acc + userHistory.length;
+                              }, 0)}
                             </p>
+                          </div>
+                          <div className="col-span-2 bg-violet-600/5 rounded-2xl p-4 border border-violet-500/20">
+                             <p className="text-[10px] text-violet-400 uppercase font-black mb-2 flex items-center gap-2">
+                               <Trophy className="w-3 h-3" /> System Record (Fastest)
+                             </p>
+                             <div className="flex items-end justify-between">
+                               <div>
+                                 {(() => {
+                                   const allRuns = (Object.entries(history) as any).flatMap(([usr, runs]: [string, any[]]) => runs.map(r => ({ ...r, username: usr })));
+                                   const fastest = allRuns.sort((a: any, b: any) => (a.speed || 0) - (b.speed || 0))[0];
+                                   return fastest ? (
+                                     <>
+                                       <p className="text-3xl font-black text-white leading-none mb-1">{fastest.speed}s</p>
+                                       <p className="text-[10px] text-gray-500 font-black uppercase">Held by {fastest.username}</p>
+                                     </>
+                                   ) : <p className="text-sm text-gray-600">No logs yet</p>;
+                                 })()}
+                               </div>
+                               <div className="text-right">
+                                 <p className="text-[8px] text-gray-600 font-bold uppercase tracking-widest">Global Ranking Active</p>
+                               </div>
+                             </div>
                           </div>
                         </div>
                       )}
@@ -3247,6 +3340,30 @@ export default function App() {
                           <div className="flex items-center gap-2 mb-2">
                             <ShieldAlert className="w-4 h-4 text-amber-500" />
                             <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500">Owner Command Center</h4>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-[9px] text-gray-400 font-black uppercase">System Lock</label>
+                              <button 
+                                onClick={toggleMaintenance}
+                                className={`w-full py-2 rounded-xl border flex items-center justify-center gap-2 transition-all ${maintenanceMode ? 'bg-amber-600 border-amber-500 text-white' : 'bg-gray-900 border-gray-800 text-gray-500'}`}
+                              >
+                                {maintenanceMode ? <Lock className="w-3 h-3" /> : <Settings2 className="w-3 h-3" />}
+                                <span className="text-[9px] font-black uppercase tracking-widest">
+                                  {maintenanceMode ? 'Maintenance ON' : 'Normal Mode'}
+                                </span>
+                              </button>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[9px] text-gray-400 font-black uppercase">System Branding</label>
+                              <input 
+                                type="text"
+                                defaultValue={systemName}
+                                onBlur={(e) => updateSystemName(e.target.value)}
+                                className="w-full bg-black border border-gray-800 rounded-xl p-2 text-[10px] font-bold text-violet-400"
+                              />
+                            </div>
                           </div>
                           
                           <div className="space-y-2">
@@ -3283,6 +3400,26 @@ export default function App() {
                              >
                                 <Database className="w-3 h-3" /> Purge Logs
                              </button>
+                          </div>
+
+                          <div className="border-t border-gray-800 pt-4">
+                            <label className="text-[9px] text-gray-500 font-black uppercase flex items-center gap-2 mb-2">
+                              <ListRestart className="w-3 h-3" /> Global Audit Logs
+                            </label>
+                            <div className="space-y-1.5 max-h-32 overflow-auto pr-2 custom-scrollbar">
+                              {auditLogs.map((log, idx) => (
+                                <div key={idx} className="bg-black/40 p-2 rounded-lg border border-gray-900 flex justify-between items-start gap-3">
+                                  <div className="flex-1">
+                                    <p className="text-[9px] font-black text-violet-400 uppercase tracking-tighter leading-none mb-1">{log.action}</p>
+                                    <p className="text-[8px] text-gray-500 leading-tight">{log.detail}</p>
+                                  </div>
+                                  <div className="text-right flex flex-col gap-0.5">
+                                    <span className="text-[7px] text-gray-600 font-bold uppercase">{log.user}</span>
+                                    <span className="text-[7px] text-gray-700">{log.timestamp?.toDate ? log.timestamp.toDate().toLocaleTimeString() : '...'}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       )}
