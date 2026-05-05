@@ -37,6 +37,14 @@ import {
   CheckSquare,
   Square,
   LayoutGrid,
+  Smartphone,
+  Database,
+  Megaphone,
+  Download,
+  Search,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  ShieldAlert,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -528,7 +536,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
 interface User {
   username: string;
   password: string;
-  role: "admin" | "customer";
+  role: "owner" | "admin" | "customer";
   boundDeviceId?: string;
 }
 
@@ -722,18 +730,21 @@ export default function App() {
     }
   });
   const [users, setUsers] = useState<User[]>(() => {
+    const defaultAdmin: User = { username: "Atmin", password: "AtminDragRace27", role: "owner" };
     const saved = localStorage.getItem("race_users");
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved) as User[];
+        // Ensure the requested admin is always in the list
+        if (!parsed.some(u => u.username.toLowerCase() === "atmin")) {
+          return [defaultAdmin, ...parsed];
+        }
+        return parsed;
       } catch {
-        return [
-          { username: "Admin", password: "AdminDragRace27", role: "admin" },
-        ];
+        return [defaultAdmin];
       }
     }
-    // Initial Admin Account
-    return [{ username: "Admin", password: "AdminDragRace27", role: "admin" }];
+    return [defaultAdmin];
   });
   const [loginForm, setLoginForm] = useState({
     username: "",
@@ -747,23 +758,115 @@ export default function App() {
     role: "admin" | "customer";
   }>({ username: "", password: "", role: "customer" });
   const [adminMessage, setAdminMessage] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | "owner" | "admin" | "customer">("all");
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [hasAgreedToSafety, setHasAgreedToSafety] = useState(() => localStorage.getItem('race_safety_agreed') === 'true');
   const wakeLockRef = useRef<any>(null);
 
+  // --- Broadcast Sync ---
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "system", "broadcast"), (snap) => {
+      if (snap.exists()) {
+        setBroadcastMessage(snap.data().message || "");
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const updateBroadcast = async (msg: string) => {
+    try {
+      await setDoc(doc(db, "system", "broadcast"), { message: msg });
+      setAdminMessage("Broadcast updated");
+      setTimeout(() => setAdminMessage(""), 3000);
+    } catch (err) {
+      console.error(err);
+      setAdminMessage("Error updating broadcast");
+    }
+  };
+
+  const handleUpdateRole = async (username: string, newRole: "admin" | "customer") => {
+    try {
+      await setDoc(doc(db, "users", username), { role: newRole }, { merge: true });
+      setAdminMessage(`User promoted to ${newRole}`);
+      setTimeout(() => setAdminMessage(""), 3000);
+    } catch (err) {
+      console.error(err);
+      setAdminMessage("Error updating role");
+    }
+  };
+
+  const purgeAllGlobalHistory = async () => {
+    if (!window.confirm("CRITICAL: THIS WILL DELETE EVERY SINGLE RACE LOG IN THE ENTIRE SYSTEM. Continue?")) return;
+    try {
+      setAdminMessage("Wiping system records...");
+      for (const u of users) {
+        const runsRef = collection(db, "users", u.username.toLowerCase(), "runs");
+        const snap = await getDocs(runsRef);
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+      setAdminMessage("GLOBAL PURGE COMPLETE");
+    } catch (err) {
+      console.error(err);
+      setAdminMessage("Purge failed");
+    }
+    setTimeout(() => setAdminMessage(""), 3000);
+  };
+
+  const exportSystemData = () => {
+    const data = {
+      users,
+      history,
+      exportedAt: new Date().toISOString(),
+      version: "2.0"
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `dragrace_system_export_${Date.now()}.json`;
+    link.click();
+    setAdminMessage("System export initiated");
+    setTimeout(() => setAdminMessage(""), 3000);
+  };
+
   // --- Screen Wake Lock Handler ---
   useEffect(() => {
-    // Test Firebase Connection
-    const testConnection = async () => {
+    // Seed Admin and Test Firebase Connection
+    const bootstrapFirebase = async () => {
       try {
+        // Test connection
         await getDocFromServer(doc(db, 'test', 'connection'));
+        
+        // Ensure default atmin exists in Firestore (lowercase)
+        const adminRef = doc(db, "users", "atmin");
+        const adminSnap = await getDoc(adminRef);
+        if (!adminSnap.exists()) {
+          console.log("Seeding default admin...");
+          await setDoc(adminRef, {
+            username: "Atmin",
+            password: "AtminDragRace27",
+            role: "owner"
+          });
+          // Update local state too
+          setUsers(prev => {
+            if (!prev.some(u => u.username.toLowerCase() === "atmin")) {
+              return [{ username: "Atmin", password: "AtminDragRace27", role: "owner" }, ...prev];
+            }
+            return prev;
+          });
+        }
       } catch (error) {
+        console.error("Bootstrap error:", error);
         if (error instanceof Error && error.message.includes('the client is offline')) {
           console.error("Please check your Firebase configuration.");
         }
       }
     };
-    testConnection();
+    bootstrapFirebase();
 
     const requestWakeLock = async () => {
       if ('wakeLock' in navigator && isActive && !wakeLockRef.current) {
@@ -793,9 +896,9 @@ export default function App() {
     }
   };
 
-  // --- Firebase User List Sync (for Admin) ---
+  // --- Firebase User List Sync (for Admin/Owner) ---
   useEffect(() => {
-    if (isLoggedIn && currentUser?.role === "admin") {
+    if (isLoggedIn && (currentUser?.role === "admin" || currentUser?.role === "owner")) {
       const q = query(collection(db, "users"));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const firestoreUsers: User[] = [];
@@ -852,16 +955,25 @@ export default function App() {
     e.preventDefault();
     const t = TRANSLATIONS[lang];
     
+    // Normalize username for case-insensitivity in check but use original for fetch?
+    // Actually common practice is to keep it consistent.
+    const inputUsername = loginForm.username.trim().toLowerCase();
+
     try {
-      const userDoc = await getDoc(doc(db, "users", loginForm.username));
+      setLoginError(""); // Clear old errors
+      const userDoc = await getDoc(doc(db, "users", inputUsername));
+      
       if (!userDoc.exists()) {
-        // Fallback to local users for initial migration if needed, 
-        // but for fresh start we'll just check Firestore
-        const localUser = users.find(u => u.username === loginForm.username && u.password === loginForm.password);
+        const localUser = users.find(u => u.username.toLowerCase() === inputUsername && u.password === loginForm.password);
         if (localUser) {
-           // Auto-migrate local user to Firestore
-           await setDoc(doc(db, "users", localUser.username), localUser);
-           await proceedWithLogin(localUser);
+           try {
+             await setDoc(doc(db, "users", localUser.username), localUser);
+             await proceedWithLogin(localUser);
+           } catch (migrateErr: any) {
+             console.error("Migration error:", migrateErr);
+             // If migration fails but local exists, we should still allow login but warn or proceed
+             await proceedWithLogin(localUser);
+           }
         } else {
           setLoginError(t.invalidCredentials);
         }
@@ -875,9 +987,15 @@ export default function App() {
       }
 
       await proceedWithLogin(user);
-    } catch (err) {
-      console.error("Login error:", err);
-      setLoginError("Connection Error");
+    } catch (err: any) {
+      console.error("Login error details:", err);
+      if (err.message?.includes("offline")) {
+        setLoginError("Offline / Connection Error");
+      } else if (err.message?.includes("permission")) {
+        setLoginError("Database Permission Error");
+      } else {
+        setLoginError("Error: " + (err.message || "Unknown"));
+      }
     }
   };
 
@@ -951,17 +1069,25 @@ export default function App() {
     e.preventDefault();
     const t = TRANSLATIONS[lang];
     if (!newCustomerForm.username) return setAdminMessage(t.nameRequired);
-    if (newCustomerForm.password.length < 4)
+    if (!newCustomerForm.password || newCustomerForm.password.length < 4)
       return setAdminMessage(t.passRequired);
 
+    const targetUsername = newCustomerForm.username.trim().toLowerCase();
+
     try {
-      const userDoc = await getDoc(doc(db, "users", newCustomerForm.username));
+      const userDoc = await getDoc(doc(db, "users", targetUsername));
       if (userDoc.exists()) {
         return setAdminMessage("Username already exists");
       }
 
-      await setDoc(doc(db, "users", newCustomerForm.username), newCustomerForm);
-      setUsers((prev) => [...prev, { ...newCustomerForm }]);
+      // Security check: Only owner can create admin accounts
+      if (newCustomerForm.role === "admin" && currentUser?.role !== "owner") {
+        return setAdminMessage("Only owner can create admin accounts");
+      }
+
+      const userData = { ...newCustomerForm, username: targetUsername };
+      await setDoc(doc(db, "users", targetUsername), userData);
+      setUsers((prev) => [...prev, userData]);
       setNewCustomerForm({ username: "", password: "", role: "customer" });
       setAdminMessage(t.userCreated);
       setTimeout(() => setAdminMessage(""), 3000);
@@ -972,8 +1098,17 @@ export default function App() {
   };
 
   const handleDeleteUser = (username: string) => {
-    if (username === "Admin") return; // Protect main admin
-    if (username === currentUser?.username) return; // Protect currently logged in user
+    const lowerName = username.toLowerCase();
+    if (lowerName === "atmin") return; // Protect main owner
+    if (lowerName === currentUser?.username.toLowerCase()) return; // Protect self
+
+    // Security check: Admins cannot delete other admins or the owner
+    const targetUser = users.find(u => u.username.toLowerCase() === lowerName);
+    if (targetUser && (targetUser.role === "admin" || targetUser.role === "owner") && currentUser?.role !== "owner") {
+      setAdminMessage("Only owner can delete admins");
+      setTimeout(() => setAdminMessage(""), 3000);
+      return;
+    }
 
     setUserToDelete(username);
   };
@@ -981,13 +1116,57 @@ export default function App() {
   const confirmDeleteUser = async () => {
     if (userToDelete) {
       try {
-        await deleteDoc(doc(db, "users", userToDelete));
+        // Delete runs subcollection first
+        const runsRef = collection(db, "users", userToDelete, "runs");
+        const runsSnapshot = await getDocs(runsRef);
+        const batch = writeBatch(db);
+        runsSnapshot.forEach((runDoc) => {
+          batch.delete(runDoc.ref);
+        });
+        
+        // Delete the user document
+        batch.delete(doc(db, "users", userToDelete));
+        
+        await batch.commit();
         setUserToDelete(null);
+        setAdminMessage("User deleted successfully");
       } catch (err) {
         console.error("Delete user error:", err);
         setAdminMessage("Error deleting user");
       }
+      setTimeout(() => setAdminMessage(""), 3000);
     }
+  };
+
+  const handleMasterReset = async () => {
+    if (!window.confirm("CRITICAL: All users and history will be DELETED. The new Admin account will be created. Continue?")) return;
+    
+    try {
+      const usersSnapshot = await getDocs(collection(db, "users"));
+      for (const userDoc of usersSnapshot.docs) {
+        const username = userDoc.id;
+        // Delete runs
+        const runsSnapshot = await getDocs(collection(db, "users", username, "runs"));
+        const batch = writeBatch(db);
+        runsSnapshot.forEach(r => batch.delete(r.ref));
+        // Delete user
+        batch.delete(userDoc.ref);
+        await batch.commit();
+      }
+      
+      // Create requested Admin account
+      await setDoc(doc(db, "users", "atmin"), {
+        username: "Atmin",
+        password: "AtminDragRace27",
+        role: "owner"
+      });
+      
+      setAdminMessage("MASTER RESET COMPLETE. New Admin created.");
+    } catch (err) {
+      console.error("Master reset error:", err);
+      setAdminMessage("Reset Error");
+    }
+    setTimeout(() => setAdminMessage(""), 3000);
   };
 
   const handleResetDevice = async (username: string) => {
@@ -1624,6 +1803,17 @@ export default function App() {
                   {isOnline ? "Online" : "Offline"}
                 </span>
               </div>
+              {broadcastMessage && (
+                <div className="flex-1 mx-4 overflow-hidden bg-violet-600/10 border border-violet-500/20 rounded h-4 flex items-center">
+                  <motion.div
+                    animate={{ x: [200, -400] }}
+                    transition={{ repeat: Infinity, duration: 15, ease: "linear" }}
+                    className="whitespace-nowrap text-[8px] font-black uppercase tracking-widest text-violet-400 italic"
+                  >
+                   SYSTEM BROADCAST: {broadcastMessage}
+                  </motion.div>
+                </div>
+              )}
 
               <div className="flex items-center gap-1">
                 <div className="flex items-end gap-0.5 h-3">
@@ -2954,11 +3144,78 @@ export default function App() {
                     </div>
                   </section>
 
-                  {currentUser?.role === "admin" && (
+                  {(currentUser?.role === "admin" || currentUser?.role === "owner") && (
                     <section className="bg-gray-900/60 rounded-3xl border border-violet-500/30 p-6 shadow-xl shadow-violet-500/5">
-                      <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center gap-2">
-                        <UserPlus className="w-4 h-4" /> {t.adminPanel}
+                      <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <UserPlus className="w-4 h-4" /> {t.adminPanel}
+                        </div>
+                        {currentUser?.role === "owner" && (
+                          <span className="text-[8px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded border border-amber-500/20 font-black animate-pulse">
+                            OWNER PRIVILEGES ACTIVE
+                          </span>
+                        )}
                       </h3>
+
+                      {currentUser?.role === "owner" && (
+                        <div className="grid grid-cols-2 gap-4 mb-8">
+                          <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
+                            <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Total System Users</p>
+                            <p className="text-2xl font-black text-violet-400 leading-none">{users.length}</p>
+                          </div>
+                          <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
+                            <p className="text-[10px] text-gray-500 uppercase font-black mb-1">System Race Logs</p>
+                            <p className="text-2xl font-black text-violet-400 leading-none">
+                              {users.reduce((acc, u) => acc + (history[u.username]?.length || 0), 0)}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {currentUser?.role === "owner" && (
+                        <div className="bg-gray-950/40 rounded-2xl border border-amber-500/20 p-4 mb-8 space-y-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <ShieldAlert className="w-4 h-4 text-amber-500" />
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500">Owner Command Center</h4>
+                          </div>
+                          
+                          <div className="space-y-2">
+                             <label className="text-[9px] text-gray-500 font-black uppercase">System Broadcaster</label>
+                             <div className="flex gap-2">
+                               <input 
+                                 type="text" 
+                                 placeholder="Enter system announcement..."
+                                 onKeyDown={(e) => {
+                                   if (e.key === "Enter") updateBroadcast((e.target as any).value);
+                                 }}
+                                 className="flex-1 bg-black border border-gray-800 rounded-lg p-2 text-[10px] font-bold"
+                               />
+                               <button 
+                                 onClick={() => {
+                                   const input = document.querySelector('input[placeholder="Enter system announcement..."]') as HTMLInputElement;
+                                   if (input) updateBroadcast(input.value);
+                                 }}
+                                 className="bg-violet-600 p-2 rounded-lg"
+                               ><Megaphone className="w-3 h-3 text-white" /></button>
+                             </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 pt-2">
+                             <button 
+                               onClick={exportSystemData}
+                               className="flex items-center justify-center gap-2 bg-gray-900 border border-gray-800 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white"
+                             >
+                                <Download className="w-3 h-3" /> Export Data
+                             </button>
+                             <button 
+                               onClick={purgeAllGlobalHistory}
+                               className="flex items-center justify-center gap-2 bg-red-600/10 border border-red-500/20 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest text-red-500 hover:bg-red-600 hover:text-white"
+                             >
+                                <Database className="w-3 h-3" /> Purge Logs
+                             </button>
+                          </div>
+                        </div>
+                      )}
 
                       <form
                         onSubmit={handleCreateCustomer}
@@ -2995,7 +3252,7 @@ export default function App() {
                         </div>
 
                         <div className="flex gap-2 p-1 bg-gray-950 rounded-xl border border-gray-800">
-                          {(["customer", "admin"] as const).map((r) => (
+                          {(currentUser?.role === "owner" ? ["customer", "admin"] : ["customer"]).map((r) => (
                             <button
                               key={r}
                               type="button"
@@ -3033,23 +3290,81 @@ export default function App() {
                       </form>
 
                       <div className="border-t border-gray-800 pt-6">
-                        <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-4">
-                          {t.userList}
-                        </p>
-                        <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                          {users.map((u, i) => (
+                        <div className="space-y-4 mb-4">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">
+                              {t.userList}
+                            </p>
+                            {currentUser?.role === "owner" && (
+                              <button
+                                onClick={handleMasterReset}
+                                className="text-[8px] bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-2 py-1 rounded-md border border-red-500/20 font-black transition-all"
+                              >
+                                MASTER RESET
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2 items-center">
+                            <div className="relative flex-1">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-600" />
+                              <input 
+                                type="text" 
+                                placeholder="Search users..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-black/40 border border-gray-800 rounded-xl pl-9 pr-3 py-2 text-[10px] font-bold"
+                              />
+                            </div>
+                            <select 
+                              value={roleFilter}
+                              onChange={(e) => setRoleFilter(e.target.value as any)}
+                              className="bg-black/40 border border-gray-800 rounded-xl px-3 py-2 text-[10px] font-bold text-gray-400 uppercase"
+                            >
+                               <option value="all">ALL</option>
+                               <option value="admin">ADMINS</option>
+                               <option value="customer">MEMBERS</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                          {users
+                            .filter(u => {
+                              const matchesSearch = u.username.toLowerCase().includes(searchTerm.toLowerCase());
+                              const matchesRole = roleFilter === "all" || u.role === roleFilter;
+                              return matchesSearch && matchesRole;
+                            })
+                            .map((u, i) => (
                             <div
                               key={i}
                               className="flex items-center justify-between p-3 bg-gray-950/50 rounded-xl border border-gray-800/50"
                             >
-                              <div className="flex flex-col">
+                              <div className="flex flex-col flex-1">
                                 <div className="flex items-center gap-3">
                                   <div
-                                    className={`w-2 h-2 rounded-full ${u.role === "admin" ? "bg-violet-500 shadow-[0_0_5px_rgba(139,92,246,0.5)]" : "bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]"}`}
+                                    className={`w-2 h-2 rounded-full ${u.role === "owner" ? "bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.5)]" : u.role === "admin" ? "bg-violet-500 shadow-[0_0_5px_rgba(139,92,246,0.5)]" : "bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]"}`}
                                   />
-                                  <span className="text-xs font-bold">
+                                  <span className="text-xs font-bold leading-none">
                                     {u.username}
                                   </span>
+                                  {currentUser?.role === "owner" && u.role !== "owner" && (
+                                     <div className="flex gap-1 ml-auto">
+                                        {u.role === "customer" ? (
+                                          <button 
+                                            onClick={() => handleUpdateRole(u.username, "admin")}
+                                            className="p-1 rounded-md bg-violet-600/10 text-violet-500 hover:bg-violet-600 hover:text-white transition-all"
+                                            title="Promote to Admin"
+                                          ><ArrowUpCircle className="w-3 h-3" /></button>
+                                        ) : (
+                                          <button 
+                                            onClick={() => handleUpdateRole(u.username, "customer")}
+                                            className="p-1 rounded-md bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-white transition-all"
+                                            title="Demote to Member"
+                                          ><ArrowDownCircle className="w-3 h-3" /></button>
+                                        )}
+                                     </div>
+                                  )}
                                 </div>
                                 {u.role === "customer" && (
                                   <div className="flex items-center gap-1 mt-1">
@@ -3063,36 +3378,61 @@ export default function App() {
                                   </div>
                                 )}
                               </div>
-                              <div className="flex items-center gap-2">
-                                {u.role === "customer" && u.boundDeviceId && (
-                                  <button
-                                    onClick={() =>
-                                      handleResetDevice(u.username)
-                                    }
-                                    className="text-violet-500 hover:text-violet-400 transition-colors bg-violet-500/10 p-1.5 rounded-lg border border-violet-500/20 active:scale-95"
-                                    title={t.resetDevice}
-                                  >
-                                    <Activity className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
+                              <div className="flex items-center gap-2 ml-4">
+                                {u.username.toLowerCase() !== "atmin" &&
+                                  u.username !== currentUser?.username &&
+                                  (currentUser?.role === "owner" || u.role === "customer") && (
+                                    <div className="flex gap-1 items-center">
+                                      {currentUser?.role === "owner" && u.boundDeviceId && (
+                                        <button
+                                          onClick={() => handleResetDevice(u.username)}
+                                          title="Force Unbind Device"
+                                          className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-white transition-all border border-amber-500/20 active:scale-95"
+                                        >
+                                          <Smartphone className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                      {currentUser?.role === "owner" && (history[u.username]?.length || 0) > 0 && (
+                                        <button
+                                          onClick={async () => {
+                                            if (window.confirm(`Wipe all history for ${u.username}?`)) {
+                                              try {
+                                                const runsRef = collection(db, "users", u.username.toLowerCase(), "runs");
+                                                const snap = await getDocs(runsRef);
+                                                const batch = writeBatch(db);
+                                                snap.docs.forEach(docSnap => batch.delete(docSnap.ref));
+                                                await batch.commit();
+                                                setAdminMessage(`History wiped for ${u.username}`);
+                                                setTimeout(() => setAdminMessage(""), 3000);
+                                              } catch (err) {
+                                                console.error(err);
+                                                setAdminMessage("Error wiping history");
+                                                setTimeout(() => setAdminMessage(""), 3000);
+                                              }
+                                            }
+                                          }}
+                                          title="Wipe History"
+                                          className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all border border-red-500/20 active:scale-95"
+                                        >
+                                          <Database className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => handleDeleteUser(u.username)}
+                                        title="Delete User"
+                                        className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all border border-red-500/20 active:scale-95"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  )}
                                 <span
-                                  className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${u.role === "admin" ? "bg-violet-500/20 text-violet-400" : "bg-blue-500/20 text-blue-400"}`}
+                                  className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${u.role === "owner" ? "bg-amber-500/20 text-amber-400" : u.role === "admin" ? "bg-violet-500/20 text-violet-400" : "bg-blue-500/20 text-blue-400"}`}
                                 >
                                   {u.role === "customer"
                                     ? "MEMBER DRAG RACE"
-                                    : u.role}
+                                    : u.role === "owner" ? "OWNER" : u.role}
                                 </span>
-                                {u.username !== "Admin" &&
-                                  u.username !== currentUser?.username && (
-                                    <button
-                                      onClick={() =>
-                                        handleDeleteUser(u.username)
-                                      }
-                                      className="text-gray-600 hover:text-red-500 transition-colors p-1"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
                               </div>
                             </div>
                           ))}
