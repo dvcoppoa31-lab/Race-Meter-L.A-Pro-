@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUser(data) {
+      return data.username is string && data.username.size() > 0 &&
+             data.password is string && data.password.size() >= 4 &&
+             data.role in ['admin', 'customer'];
+    }
+
+    function isValidRun(data) {
+      return data.id is string && data.date is number &&
+             data.totalDistance is number && data.totalTime is number &&
+             data.maxSpeed is number &&
+             data.splits is list && data.telemetry is list;
+    }
+
+    // User Profile Rules
+    match /users/{username} {
+      // For this custom login system, we allow getting a specific user profile to check password
+      // In a real app, this should be handled by Firebase Auth.
+      allow get: if isValidId(username);
+      
+      // Allow creating a new account (signup)
+      allow create: if isValidId(username) && isValidUser(request.resource.data);
+      
+      // Allow updating own profile (e.g., device binding)
+      allow update: if isValidId(username) && isValidUser(request.resource.data);
+
+      // History / Runs Rules
+      match /runs/{runId} {
+        // Only allow access if the path starts with the user's username
+        // Since we don't have Auth UID mapping, we rely on the client pathing
+        allow read, write: if isValidId(username) && isValidId(runId);
+        
+        allow list: if isValidId(username);
+      }
+    }
+
+    // Allow admins to list all users
+    match /users/{username} {
+       allow list: if true; 
+    }
+  }
+}

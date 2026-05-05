@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account information",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "customer"] },
+        "boundDeviceId": { "type": "string" }
+      },
+      "required": ["username", "password", "role"]
+    },
+    "RaceRun": {
+      "title": "Race Run",
+      "description": "Details of a single racing run",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "number" },
+        "totalDistance": { "type": "number" },
+        "totalTime": { "type": "number" },
+        "maxSpeed": { "type": "number" },
+        "avgSpeed": { "type": "number" },
+        "peakG": { "type": "number" },
+        "accuracy": { "type": "number" },
+        "avgHz": { "type": "number" },
+        "splits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "distance": { "type": "number" },
+              "label": { "type": "string" },
+              "time": { "type": "number" },
+              "speedAtSplit": { "type": "number" }
+            }
+          }
+        },
+        "telemetry": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "time": { "type": "number" },
+              "speed": { "type": "number" },
+              "accel": { "type": "number" }
+            }
+          }
+        }
+      },
+      "required": ["id", "date", "totalDistance", "totalTime", "maxSpeed"]
+    }
+  },
+  "firestore": {
+    "users/{username}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "users/{username}/runs/{runId}": {
+      "schema": "RaceRun",
+      "description": "Race runs for a specific user"
+    }
+  }
+}

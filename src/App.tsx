@@ -53,6 +53,54 @@ import {
   Label,
   Legend,
 } from "recharts";
+import { db } from "./lib/firebase";
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  collection, 
+  getDocs, 
+  onSnapshot, 
+  query, 
+  where, 
+  deleteDoc, 
+  getDocFromServer,
+  writeBatch
+} from 'firebase/firestore';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: "local_auth_user", // Using local auth username as identity for now
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 // --- Types ---
 
@@ -705,6 +753,18 @@ export default function App() {
 
   // --- Screen Wake Lock Handler ---
   useEffect(() => {
+    // Test Firebase Connection
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    };
+    testConnection();
+
     const requestWakeLock = async () => {
       if ('wakeLock' in navigator && isActive && !wakeLockRef.current) {
         try {
@@ -733,6 +793,50 @@ export default function App() {
     }
   };
 
+  // --- Firebase User List Sync (for Admin) ---
+  useEffect(() => {
+    if (isLoggedIn && currentUser?.role === "admin") {
+      const q = query(collection(db, "users"));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const firestoreUsers: User[] = [];
+        snapshot.forEach((doc) => {
+          firestoreUsers.push(doc.data() as User);
+        });
+        setUsers(firestoreUsers);
+      });
+      return () => unsubscribe();
+    }
+  }, [isLoggedIn, currentUser?.role]);
+
+  // --- Firebase History Sync ---
+  useEffect(() => {
+    if (isLoggedIn && currentUser) {
+      const q = query(collection(db, "users", currentUser.username, "runs"));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const firestoreHistory: RaceRun[] = [];
+        snapshot.forEach((doc) => {
+          firestoreHistory.push(doc.data() as RaceRun);
+        });
+        // Sort by date descending
+        firestoreHistory.sort((a, b) => b.date - a.date);
+        
+        setHistory(firestoreHistory);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, `users/${currentUser?.username}/runs`);
+      });
+      return () => unsubscribe();
+    } else if (!isLoggedIn) {
+       // Show local history when logged out, or empty it?
+       // Let's load the local one
+       const saved = localStorage.getItem("race_history");
+       try {
+         setHistory(saved ? JSON.parse(saved) : []);
+       } catch {
+         setHistory([]);
+       }
+    }
+  }, [isLoggedIn, currentUser?.username]);
+
   // Save users to localStorage
   useEffect(() => {
     localStorage.setItem("race_users", JSON.stringify(users));
@@ -744,73 +848,92 @@ export default function App() {
     }
   }, [splits]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const t = TRANSLATIONS[lang];
-    const user = users.find(
-      (u) =>
-        u.username === loginForm.username && u.password === loginForm.password,
-    );
-
-    if (user) {
-      // Logic for 1 account 1 device
-      // Admins are exempt from device binding
-      if (user.role === "customer") {
-        if (user.boundDeviceId && user.boundDeviceId !== deviceId) {
-          setLoginError(t.deviceAlreadyBound);
-          return;
-        }
-
-        // Bind device if not already bound
-        if (!user.boundDeviceId) {
-          const updatedUsers = users.map((u) =>
-            u.username === user.username
-              ? { ...u, boundDeviceId: deviceId }
-              : u,
-          );
-          setUsers(updatedUsers);
-          const boundUser = { ...user, boundDeviceId: deviceId };
-          setCurrentUser(boundUser);
-
-          if (loginForm.rememberMe) {
-            localStorage.setItem("race_logged_in", "true");
-            localStorage.setItem(
-              "race_current_user",
-              JSON.stringify(boundUser),
-            );
-          } else {
-            sessionStorage.setItem("race_logged_in", "true");
-            sessionStorage.setItem(
-              "race_current_user",
-              JSON.stringify(boundUser),
-            );
-          }
+    
+    try {
+      const userDoc = await getDoc(doc(db, "users", loginForm.username));
+      if (!userDoc.exists()) {
+        // Fallback to local users for initial migration if needed, 
+        // but for fresh start we'll just check Firestore
+        const localUser = users.find(u => u.username === loginForm.username && u.password === loginForm.password);
+        if (localUser) {
+           // Auto-migrate local user to Firestore
+           await setDoc(doc(db, "users", localUser.username), localUser);
+           await proceedWithLogin(localUser);
         } else {
-          setCurrentUser(user);
-          if (loginForm.rememberMe) {
-            localStorage.setItem("race_logged_in", "true");
-            localStorage.setItem("race_current_user", JSON.stringify(user));
-          } else {
-            sessionStorage.setItem("race_logged_in", "true");
-            sessionStorage.setItem("race_current_user", JSON.stringify(user));
-          }
+          setLoginError(t.invalidCredentials);
         }
-      } else {
-        setCurrentUser(user);
-        if (loginForm.rememberMe) {
-          localStorage.setItem("race_logged_in", "true");
-          localStorage.setItem("race_current_user", JSON.stringify(user));
-        } else {
-          sessionStorage.setItem("race_logged_in", "true");
-          sessionStorage.setItem("race_current_user", JSON.stringify(user));
-        }
+        return;
       }
 
-      setIsLoggedIn(true);
-      setLoginError("");
-      setLoginForm({ username: "", password: "", rememberMe: true });
+      const user = userDoc.data() as User;
+      if (user.password !== loginForm.password) {
+        setLoginError(t.invalidCredentials);
+        return;
+      }
+
+      await proceedWithLogin(user);
+    } catch (err) {
+      console.error("Login error:", err);
+      setLoginError("Connection Error");
+    }
+  };
+
+  const proceedWithLogin = async (user: User) => {
+    const t = TRANSLATIONS[lang];
+
+    // Migration: if there is local history, upload it to this account
+    const localHistoryRaw = localStorage.getItem("race_history");
+    if (localHistoryRaw) {
+      try {
+        const localHistory: RaceRun[] = JSON.parse(localHistoryRaw);
+        if (localHistory.length > 0) {
+          const batch = writeBatch(db);
+          localHistory.forEach((run) => {
+            const runRef = doc(db, "users", user.username, "runs", run.id);
+            batch.set(runRef, run);
+          });
+          await batch.commit();
+          localStorage.removeItem("race_history");
+        }
+      } catch (err) {
+        console.error("Migration error:", err);
+      }
+    }
+
+    if (user.role === "customer") {
+      if (user.boundDeviceId && user.boundDeviceId !== deviceId) {
+        setLoginError(t.deviceAlreadyBound);
+        return;
+      }
+
+      if (!user.boundDeviceId) {
+        const boundUser = { ...user, boundDeviceId: deviceId };
+        await setDoc(doc(db, "users", user.username), boundUser);
+        setCurrentUser(boundUser);
+        saveAuthToStorage(boundUser);
+      } else {
+        setCurrentUser(user);
+        saveAuthToStorage(user);
+      }
     } else {
-      setLoginError(t.invalidCredentials);
+      setCurrentUser(user);
+      saveAuthToStorage(user);
+    }
+    setIsLoggedIn(true);
+    setLoginError("");
+    setLoginForm({ username: "", password: "", rememberMe: true });
+  };
+
+  const saveAuthToStorage = (user: User) => {
+    if (loginForm.rememberMe) {
+      localStorage.setItem("race_logged_in", "true");
+      localStorage.setItem("race_current_user", JSON.stringify(user));
+    } else {
+      sessionStorage.setItem("race_logged_in", "true");
+      sessionStorage.setItem("race_current_user", JSON.stringify(user));
     }
   };
 
@@ -824,21 +947,28 @@ export default function App() {
     setView("welcome");
   };
 
-  const handleCreateCustomer = (e: React.FormEvent) => {
+  const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     const t = TRANSLATIONS[lang];
     if (!newCustomerForm.username) return setAdminMessage(t.nameRequired);
     if (newCustomerForm.password.length < 4)
       return setAdminMessage(t.passRequired);
 
-    if (users.find((u) => u.username === newCustomerForm.username)) {
-      return setAdminMessage("Username already exists");
-    }
+    try {
+      const userDoc = await getDoc(doc(db, "users", newCustomerForm.username));
+      if (userDoc.exists()) {
+        return setAdminMessage("Username already exists");
+      }
 
-    setUsers((prev) => [...prev, { ...newCustomerForm }]);
-    setNewCustomerForm({ username: "", password: "", role: "customer" });
-    setAdminMessage(t.userCreated);
-    setTimeout(() => setAdminMessage(""), 3000);
+      await setDoc(doc(db, "users", newCustomerForm.username), newCustomerForm);
+      setUsers((prev) => [...prev, { ...newCustomerForm }]);
+      setNewCustomerForm({ username: "", password: "", role: "customer" });
+      setAdminMessage(t.userCreated);
+      setTimeout(() => setAdminMessage(""), 3000);
+    } catch (err) {
+      console.error("Create user error:", err);
+      setAdminMessage("Error creating user");
+    }
   };
 
   const handleDeleteUser = (username: string) => {
@@ -848,20 +978,31 @@ export default function App() {
     setUserToDelete(username);
   };
 
-  const confirmDeleteUser = () => {
+  const confirmDeleteUser = async () => {
     if (userToDelete) {
-      setUsers((prev) => prev.filter((u) => u.username !== userToDelete));
-      setUserToDelete(null);
+      try {
+        await deleteDoc(doc(db, "users", userToDelete));
+        setUserToDelete(null);
+      } catch (err) {
+        console.error("Delete user error:", err);
+        setAdminMessage("Error deleting user");
+      }
     }
   };
 
-  const handleResetDevice = (username: string) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.username === username ? { ...u, boundDeviceId: undefined } : u,
-      ),
-    );
-    setAdminMessage(TRANSLATIONS[lang].resetDevice + " OK");
+  const handleResetDevice = async (username: string) => {
+    try {
+      const userRef = doc(db, "users", username);
+      const userDoc = await getDoc(userRef);
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as User;
+        await setDoc(userRef, { ...userData, boundDeviceId: undefined });
+        setAdminMessage(TRANSLATIONS[lang].resetDevice + " OK");
+      }
+    } catch (err) {
+      console.error("Reset device error:", err);
+      setAdminMessage("Error resetting device");
+    }
     setTimeout(() => setAdminMessage(""), 3000);
   };
 
@@ -1250,7 +1391,13 @@ export default function App() {
         splits: [...effectiveSplits],
         telemetry: [...sessionTelemetryRef.current],
       };
-      setHistory((prev) => [newRun, ...prev]);
+
+      if (isLoggedIn && currentUser) {
+        setDoc(doc(db, "users", currentUser.username, "runs", newRun.id), newRun)
+          .catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${currentUser.username}/runs/${newRun.id}`));
+      } else {
+        setHistory((prev) => [newRun, ...prev]);
+      }
     }
 
     setIsActive(false);
@@ -1259,13 +1406,35 @@ export default function App() {
     isLiveRef.current = false;
   };
 
-  const deleteHistory = (id: string) => {
-    setHistory((prev) => prev.filter((h) => h.id !== id));
+  const deleteHistory = async (id: string) => {
+    if (isLoggedIn && currentUser) {
+      try {
+        await deleteDoc(doc(db, "users", currentUser.username, "runs", id));
+      } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, `users/${currentUser.username}/runs/${id}`);
+      }
+    } else {
+      setHistory((prev) => prev.filter((h) => h.id !== id));
+    }
   };
 
-  const clearHistory = () => {
+  const clearHistory = async () => {
     if (window.confirm(t.deleteConfirm)) {
-      setHistory([]);
+      if (isLoggedIn && currentUser) {
+        try {
+          const q = query(collection(db, "users", currentUser.username, "runs"));
+          const snapshot = await getDocs(q);
+          const batch = writeBatch(db);
+          snapshot.forEach((doc) => {
+            batch.delete(doc.ref);
+          });
+          await batch.commit();
+        } catch (e) {
+          handleFirestoreError(e, OperationType.DELETE, `users/${currentUser.username}/runs`);
+        }
+      } else {
+        setHistory([]);
+      }
     }
   };
 

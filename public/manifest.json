@@ -1,0 +1,18 @@
+{
+  "name": "Race Dyno Pro",
+  "short_name": "DynoPro",
+  "description": "High-precision GPS racing telemetry and performance monitor.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#8b5cf6",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/stencil/512/000000/racing-flag.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
