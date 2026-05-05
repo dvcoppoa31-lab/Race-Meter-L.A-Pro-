@@ -707,11 +707,7 @@ export default function App() {
   const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
 
   // --- Auth State ---
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    const persistent = localStorage.getItem("race_logged_in") === "true";
-    const temporary = sessionStorage.getItem("race_logged_in") === "true";
-    return persistent || temporary;
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [deviceId] = useState(() => {
     let id = localStorage.getItem("race_device_id");
     if (!id) {
@@ -720,16 +716,7 @@ export default function App() {
     }
     return id;
   });
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const persistent = localStorage.getItem("race_current_user");
-    const temporary = sessionStorage.getItem("race_current_user");
-    const saved = persistent || temporary;
-    try {
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>(() => {
     const defaultAdmin: User = { username: "Atmin", password: "AtminDragRace27", role: "owner" };
     const saved = localStorage.getItem("race_users");
@@ -750,7 +737,7 @@ export default function App() {
   const [loginForm, setLoginForm] = useState({
     username: "",
     password: "",
-    rememberMe: true,
+    rememberMe: false,
   });
   const [loginError, setLoginError] = useState("");
   const [newCustomerForm, setNewCustomerForm] = useState<{
