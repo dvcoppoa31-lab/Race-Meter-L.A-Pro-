@@ -49,6 +49,9 @@ import {
   Lock,
   Settings2,
   ListRestart,
+  ShieldCheck,
+  Volume2,
+  SmartphoneNfc,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -186,6 +189,10 @@ interface Translations {
   deviceBound: string;
   notBound: string;
   rememberMe: string;
+  soundEnabled: string;
+  localPilot: string;
+  identifyLocal: string;
+  displayName: string;
   safetyNotice: string;
   disclaimer: string;
   iAgree: string;
@@ -260,6 +267,10 @@ const TRANSLATIONS: Record<Language, Translations> = {
     deviceBound: "Terkait",
     notBound: "Belum Terkait",
     rememberMe: "Ingat Saya",
+    soundEnabled: "Suara Interaksi",
+    localPilot: "Pilot Lokal",
+    identifyLocal: "Identitas sesi lokal",
+    displayName: "Nama Tampilan (Mode Anonim)",
   },
   en: {
     welcome: "WELCOME",
@@ -326,6 +337,10 @@ const TRANSLATIONS: Record<Language, Translations> = {
     deviceBound: "Bound",
     notBound: "Not Bound",
     rememberMe: "Remember Me",
+    soundEnabled: "Interaction Sound",
+    localPilot: "Local Pilot",
+    identifyLocal: "Identify your local sessions",
+    displayName: "Display Name (Anonymous Mode)",
     safetyNotice: "SAFETY NOTICE",
     disclaimer:
       "This app is designed for closed-course use only. Do not use on public roads. High-speed testing is dangerous to yourself and others. Data depends on GPS accuracy.",
@@ -395,6 +410,10 @@ const TRANSLATIONS: Record<Language, Translations> = {
     deviceBound: "ผูกแล้ว",
     notBound: "ยังไม่ผูก",
     rememberMe: "จำฉันไว้",
+    soundEnabled: "เสียงโต้ตอบ",
+    localPilot: "นักแข่งท้องถิ่น",
+    identifyLocal: "ระบุเซสชันท้องถิ่นของคุณ",
+    displayName: "ชื่อที่แสดง (โหมดนิรนาม)",
     safetyNotice: "ประกาศเพื่อความปลอดภัย",
     disclaimer:
       "แอปนี้ออกแบบมาเพื่อใช้งานในสนามปิดเท่านั้น ห้ามใช้บนถนนสาธารณะ การทดสอบความเร็วสูงเป็นอันตรายต่อตัวคุณเองและผู้อื่น ข้อมูลขึ้นอยู่กับความแม่นยำของ GPS",
@@ -466,6 +485,10 @@ const TRANSLATIONS: Record<Language, Translations> = {
     deviceBound: "Đã liên kết",
     notBound: "Chưa liên kết",
     rememberMe: "Ghi nhớ đăng nhập",
+    soundEnabled: "Âm thanh tương tác",
+    localPilot: "Phi công cục bộ",
+    identifyLocal: "Xác định các phiên cục bộ của bạn",
+    displayName: "Tên hiển thị (Chế độ ẩn danh)",
     safetyNotice: "THÔNG BÁO AN TOÀN",
     disclaimer:
       "Ứng dụng này chỉ dành cho sử dụng trong đường đua khép kín. Không sử dụng trên đường công cộng. Kiểm tra tốc độ cao có hại cho bản thân và người khác. Dữ liệu phụ thuộc vào độ chính xác GPS.",
@@ -536,6 +559,10 @@ const TRANSLATIONS: Record<Language, Translations> = {
     deviceBound: "Terikat",
     notBound: "Belum Terikat",
     rememberMe: "Ingat Saya",
+    soundEnabled: "Bunyi Interaksi",
+    localPilot: "Pilot Tempatan",
+    identifyLocal: "Kenali sesi tempatan anda",
+    displayName: "Nama Paparan (Mod Tanpa Nama)",
     safetyNotice: "NOTIS KESELAMATAN",
     disclaimer:
       "Aplikasi ini direka untuk kegunaan litar tertutup sahaja. Jangan gunakan di jalan awam. Ujian kelajuan tinggi berbahaya kepada diri sendiri dan orang lain. Data bergantung pada ketepatan GPS.",
@@ -548,6 +575,7 @@ interface User {
   password: string;
   role: "owner" | "admin" | "customer";
   boundDeviceId?: string;
+  isBanned?: boolean;
 }
 
 interface Split {
@@ -637,6 +665,7 @@ export default function App() {
     if (view !== newView) {
       window.history.pushState({ view: newView }, "");
       setView(newView);
+      playSound("nav");
       if ("vibrate" in navigator) navigator.vibrate(5);
     }
   };
@@ -747,8 +776,45 @@ export default function App() {
   const [loginForm, setLoginForm] = useState({
     username: "",
     password: "",
-    rememberMe: false,
+    rememberMe: true,
   });
+
+  const exportSystemData = () => {
+    const data = {
+      users,
+      globalRuns,
+      timestamp: new Date().toISOString(),
+      exportType: "SYSTEM_FULL_DUMP"
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dragrace-system-export-${Date.now()}.json`;
+    a.click();
+    setAdminMessage("Export generated");
+    setTimeout(() => setAdminMessage(""), 3000);
+  };
+
+  const handleBulkUserDelete = async () => {
+    if (selectedUsers.length === 0) return;
+    if (!window.confirm(`Delete ${selectedUsers.length} selected users? This cannot be undone.`)) return;
+    
+    try {
+      setAdminMessage("Executing bulk delete...");
+      const batch = writeBatch(db);
+      selectedUsers.forEach(username => {
+        batch.delete(doc(db, "users", username.toLowerCase()));
+      });
+      await batch.commit();
+      setSelectedUsers([]);
+      setIsBulkManaging(false);
+      setAdminMessage("Bulk delete successful");
+    } catch (err) {
+      setAdminMessage("Delete failed");
+    }
+    setTimeout(() => setAdminMessage(""), 3000);
+  };
   const [loginError, setLoginError] = useState("");
   const [newCustomerForm, setNewCustomerForm] = useState<{
     username: string;
@@ -756,16 +822,91 @@ export default function App() {
     role: "admin" | "customer";
   }>({ username: "", password: "", role: "customer" });
   const [adminMessage, setAdminMessage] = useState("");
-  const [broadcastMessage, setBroadcastMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "owner" | "admin" | "customer">("all");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [systemName, setSystemName] = useState("DRAG RACE");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("race_sound_enabled") !== "false");
+  const [localPilotName, setLocalPilotName] = useState(() => localStorage.getItem("race_local_pilot") || "Local Usage");
+
+  // Save changes
+  useEffect(() => {
+    localStorage.setItem("race_local_pilot", localPilotName);
+  }, [localPilotName]);
+
+  useEffect(() => {
+    localStorage.setItem("race_sound_enabled", soundEnabled.toString());
+  }, [soundEnabled]);
+
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [globalRuns, setGlobalRuns] = useState<any[]>([]);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isBulkManaging, setIsBulkManaging] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+
+  const [systemConfig, setSystemConfig] = useState({
+    maintenanceMode: false,
+    systemName: "DRAG RACE",
+    broadcastMessage: "",
+    vibrationEnabled: true,
+    minAccuracy: 20,
+    gpsWatchdogSpeed: 5000,
+    strictGpsMode: false
+  });
+
+  // --- Remote Config Sync ---
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "system", "config"), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setSystemConfig(prev => ({
+          ...prev,
+          ...data
+        }));
+        
+        // Backward compatibility mappings if needed
+        if (data.maintenanceMode !== undefined) setMaintenanceMode(data.maintenanceMode);
+        if (data.systemName) setSystemName(data.systemName);
+        if (data.broadcastMessage) setBroadcastMessage(data.broadcastMessage);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // --- Real-time User Role/Data Sync ---
+  useEffect(() => {
+    if (isLoggedIn && currentUser?.username) {
+      const userRef = doc(db, "users", currentUser.username.toLowerCase());
+      const unsub = onSnapshot(userRef, (doc) => {
+        if (doc.exists()) {
+          const updatedUser = doc.data() as User;
+          setCurrentUser(updatedUser);
+          if (localStorage.getItem("race_logged_in") === "true") {
+            localStorage.setItem("race_current_user", JSON.stringify(updatedUser));
+          }
+        }
+      }, (error) => {
+        console.error("User sync error:", error);
+      });
+      return () => unsub();
+    }
+  }, [isLoggedIn, currentUser?.username]);
 
   // --- Performance Optimized Calculations ---
+  const systemStats = useMemo(() => {
+    if (globalRuns.length === 0) return { totalDist: 0, avgAcc: 0, peakSpeed: 0, totalUsers: users.length };
+    const totalDist = globalRuns.reduce((acc, r) => acc + (r.totalDistance || 0), 0);
+    const avgAcc = globalRuns.reduce((acc, r) => acc + (r.accuracy || 0), 0) / globalRuns.length;
+    const peakSpeed = Math.max(...globalRuns.map(r => r.maxSpeed || 0));
+    return {
+      totalDist: (totalDist / 1000).toFixed(2),
+      avgAcc: avgAcc.toFixed(1),
+      peakSpeed: peakSpeed.toFixed(1),
+      totalUsers: users.length
+    };
+  }, [globalRuns, users]);
+
   const fastestRun = useMemo(() => {
     if (globalRuns.length === 0) return null;
     return [...globalRuns].sort((a, b) => (a.totalTime || 0) - (b.totalTime || 0))[0];
@@ -787,26 +928,8 @@ export default function App() {
   const [hasAgreedToSafety, setHasAgreedToSafety] = useState(() => localStorage.getItem('race_safety_agreed') === 'true');
   const wakeLockRef = useRef<any>(null);
 
-  // --- Broadcast Sync ---
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, "system", "broadcast"), (snap) => {
-      if (snap.exists()) {
-        setBroadcastMessage(snap.data().message || "");
-      }
-    });
-    return () => unsub();
-  }, []);
-
   // --- Settings & Audit Sync ---
   useEffect(() => {
-    const unsubSettings = onSnapshot(doc(db, "system", "config"), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setMaintenanceMode(data.maintenanceMode || false);
-        setSystemName(data.systemName || "DRAG RACE");
-      }
-    });
-
     const unsubLogs = onSnapshot(
       query(collection(db, "system_logs"), orderBy("timestamp", "desc"), limit(20)),
       (snap) => {
@@ -815,7 +938,6 @@ export default function App() {
     );
 
     return () => {
-      unsubSettings();
       unsubLogs();
     };
   }, []);
@@ -857,12 +979,29 @@ export default function App() {
 
   const updateBroadcast = async (msg: string) => {
     try {
-      await setDoc(doc(db, "system", "broadcast"), { message: msg });
+      await setDoc(doc(db, "system", "config"), { broadcastMessage: msg }, { merge: true });
       setAdminMessage("Broadcast updated");
       setTimeout(() => setAdminMessage(""), 3000);
     } catch (err) {
       console.error(err);
       setAdminMessage("Error updating broadcast");
+    }
+  };
+
+  const updateSystemConfigProperty = async (key: string, value: any) => {
+    try {
+      await setDoc(doc(db, "system", "config"), { [key]: value }, { merge: true });
+      setAdminMessage(`${key} updated`);
+      setTimeout(() => setAdminMessage(""), 3000);
+      
+      await addDoc(collection(db, "system_logs"), {
+        action: "CONFIG_UPDATE",
+        detail: `${key} -> ${value}`,
+        user: currentUser?.username || "unknown",
+        timestamp: serverTimestamp()
+      });
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -877,39 +1016,56 @@ export default function App() {
     }
   };
 
-  const purgeAllGlobalHistory = async () => {
-    if (!window.confirm("CRITICAL: THIS WILL DELETE EVERY SINGLE RACE LOG IN THE ENTIRE SYSTEM. Continue?")) return;
+  const toggleUserBan = async (user: User) => {
     try {
-      setAdminMessage("Wiping system records...");
-      for (const u of users) {
-        const runsRef = collection(db, "users", u.username.toLowerCase(), "runs");
-        const snap = await getDocs(runsRef);
-        const batch = writeBatch(db);
-        snap.docs.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-      }
-      setAdminMessage("GLOBAL PURGE COMPLETE");
+      const newStatus = !user.isBanned;
+      await setDoc(doc(db, "users", user.username.toLowerCase()), { isBanned: newStatus }, { merge: true });
+      setAdminMessage(`User ${user.username} ${newStatus ? 'BANNED' : 'UNBANNED'}`);
+      
+      // Log it
+      await addDoc(collection(db, "system_logs"), {
+        action: newStatus ? "USER_BAN" : "USER_UNBAN",
+        detail: `Status for ${user.username} set to ${newStatus}`,
+        user: currentUser?.username || "unknown",
+        timestamp: serverTimestamp()
+      });
     } catch (err) {
-      console.error(err);
-      setAdminMessage("Purge failed");
+      setAdminMessage("Operation failed");
     }
     setTimeout(() => setAdminMessage(""), 3000);
   };
 
-  const exportSystemData = () => {
-    const data = {
-      users,
-      history,
-      exportedAt: new Date().toISOString(),
-      version: "2.0"
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `dragrace_system_export_${Date.now()}.json`;
-    link.click();
-    setAdminMessage("System export initiated");
+  const purgeAllGlobalHistory = async () => {
+    if (!window.confirm("CRITICAL: THIS WILL DELETE EVERY SINGLE RACE LOG IN THE ENTIRE SYSTEM. Continue?")) return;
+    try {
+      setAdminMessage("Wiping system records...");
+      const snap = await getDocs(query(collectionGroup(db, "runs"), limit(500)));
+      if (snap.empty) {
+        setAdminMessage("No records found");
+      } else {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        setAdminMessage(`GLOBAL PURGE COMPLETE (${snap.size} removed)`);
+      }
+    } catch (err) {
+      console.error(err);
+      setAdminMessage("Purge failed: " + (err as Error).message);
+    }
+    setTimeout(() => setAdminMessage(""), 3000);
+  };
+
+  const purgeAuditLogs = async () => {
+    if (!window.confirm("Clear all system audit logs?")) return;
+    try {
+      const snap = await getDocs(collection(db, "system_logs"));
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      setAdminMessage("Audit logs cleared");
+    } catch (err) {
+      setAdminMessage("Audit purge failed");
+    }
     setTimeout(() => setAdminMessage(""), 3000);
   };
 
@@ -918,62 +1074,101 @@ export default function App() {
     // Seed Admin and Test Firebase Connection
     const bootstrapFirebase = async () => {
       try {
-        // Test connection
-        await getDocFromServer(doc(db, 'test', 'connection'));
+        console.log("Starting Firebase bootstrap...");
         
         // Ensure default atmin exists in Firestore (lowercase)
+        // We use getDoc which will use cache if offline, better UX
         const adminRef = doc(db, "users", "atmin");
         const adminSnap = await getDoc(adminRef);
+        
         if (!adminSnap.exists()) {
           console.log("Seeding default admin...");
           await setDoc(adminRef, {
             username: "Atmin",
             password: "AtminDragRace27",
             role: "owner"
-          });
-          // Update local state too
-          setUsers(prev => {
-            if (!prev.some(u => u.username.toLowerCase() === "atmin")) {
-              return [{ username: "Atmin", password: "AtminDragRace27", role: "owner" }, ...prev];
-            }
-            return prev;
-          });
+          }, { merge: true });
+        } else {
+          console.log("Admin record found.");
         }
       } catch (error) {
-        console.error("Bootstrap error:", error);
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration.");
-        }
+        console.warn("Bootstrap minor delay/error:", error);
+        // We don't crash the whole app if seeding fails, just log it.
+        // It might be because of offline state or lack of permissions.
       }
     };
     bootstrapFirebase();
 
     const requestWakeLock = async () => {
-      if ('wakeLock' in navigator && isActive && !wakeLockRef.current) {
+      if ('wakeLock' in navigator && (isLive || isActive) && !wakeLockRef.current) {
         try {
           wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-        } catch (err) {
-          console.error('WakeLock error:', err);
+          wakeLockRef.current.addEventListener('release', () => {
+             // Handle release
+          });
+        } catch (err: any) {
+          if (err.name === 'NotAllowedError') {
+            console.warn('Wake Lock disallowed by permissions policy or user preference.');
+          } else {
+            console.error('WakeLock error:', err);
+          }
         }
-      } else if (!isActive && wakeLockRef.current) {
+      } else if (!(isLive || isActive) && wakeLockRef.current) {
         wakeLockRef.current.release();
         wakeLockRef.current = null;
       }
     };
+
+    const handleVisibilityChange = async () => {
+      if (wakeLockRef.current !== null && document.visibilityState === 'visible') {
+        await requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     requestWakeLock();
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (wakeLockRef.current) {
         wakeLockRef.current.release();
         wakeLockRef.current = null;
       }
     };
-  }, [isActive]);
+  }, [isActive, isLive]);
 
   // --- Vibration Feedback ---
   const triggerVibrate = (pattern: number | number[]) => {
+    if (!systemConfig.vibrationEnabled) return;
     if ('vibrate' in navigator) {
       navigator.vibrate(pattern);
     }
+  };
+
+  // --- Sound Assets & Utility ---
+  const SOUNDS = {
+    click: "https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3",
+    success: "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3",
+    error: "https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3",
+    start: "https://assets.mixkit.co/active_storage/sfx/1070/1070-preview.mp3",
+    nav: "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"
+  };
+
+  const audioCache = useRef<{ [key: string]: HTMLAudioElement }>({});
+
+  const playSound = (type: keyof typeof SOUNDS) => {
+    if (!soundEnabled) return;
+    
+    if (!audioCache.current[type]) {
+      audioCache.current[type] = new Audio(SOUNDS[type]);
+    }
+    
+    const audio = audioCache.current[type];
+    audio.currentTime = 0;
+    audio.volume = 0.5;
+    audio.play().catch(() => {
+      // Browsers often block autoplay or rapid triggers; ignore failures
+    });
   };
 
   // --- Firebase User List Sync (for Admin/Owner) ---
@@ -1032,10 +1227,21 @@ export default function App() {
     }
   }, [isLoggedIn, currentUser?.role]);
 
-  // Save users to localStorage
+  // Initial Boot session recovery
   useEffect(() => {
-    localStorage.setItem("race_users", JSON.stringify(users));
-  }, [users]);
+    const localRecovered = localStorage.getItem("race_logged_in") === "true";
+    const localUser = localStorage.getItem("race_current_user");
+    const sessionRecovered = sessionStorage.getItem("race_logged_in") === "true";
+    const sessionUser = sessionStorage.getItem("race_current_user");
+
+    if (localRecovered && localUser) {
+      setCurrentUser(JSON.parse(localUser));
+      setIsLoggedIn(true);
+    } else if (sessionRecovered && sessionUser) {
+      setCurrentUser(JSON.parse(sessionUser));
+      setIsLoggedIn(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (splits.some((s, idx) => s.time && !splitsRef.current[idx]?.time)) {
@@ -1074,12 +1280,14 @@ export default function App() {
 
       const user = userDoc.data() as User;
       if (user.password !== loginForm.password) {
+        playSound("error");
         setLoginError(t.invalidCredentials);
         return;
       }
 
       await proceedWithLogin(user);
     } catch (err: any) {
+      playSound("error");
       console.error("Login error details:", err);
       if (err.message?.includes("offline")) {
         setLoginError("Offline / Connection Error");
@@ -1093,6 +1301,11 @@ export default function App() {
 
   const proceedWithLogin = async (user: User) => {
     const t = TRANSLATIONS[lang];
+
+    if (user.isBanned) {
+      setLoginError("YOUR ACCOUNT HAS BEEN BANNED. Contact system owner.");
+      return;
+    }
 
     // Migration: if there is local history, upload it to this account
     const localHistoryRaw = localStorage.getItem("race_history");
@@ -1115,6 +1328,7 @@ export default function App() {
 
     if (user.role === "customer") {
       if (user.boundDeviceId && user.boundDeviceId !== deviceId) {
+        playSound("error");
         setLoginError(t.deviceAlreadyBound);
         return;
       }
@@ -1132,6 +1346,7 @@ export default function App() {
       setCurrentUser(user);
       saveAuthToStorage(user);
     }
+    playSound("success");
     setIsLoggedIn(true);
     setLoginError("");
     setLoginForm({ username: "", password: "", rememberMe: true });
@@ -1148,6 +1363,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    playSound("click");
     setIsLoggedIn(false);
     setCurrentUser(null);
     localStorage.removeItem("race_logged_in");
@@ -1515,20 +1731,47 @@ export default function App() {
     return () => window.removeEventListener("devicemotion", handleMotion);
   }, []);
 
-  // Geolocation handling
+  // Geolocation handling with aggressive watchdog
   useEffect(() => {
+    let watchdog: number | null = null;
+    
+    const startWatchdog = () => {
+      if (watchdog) window.clearInterval(watchdog);
+      watchdog = window.setInterval(() => {
+        if (isLiveRef.current) {
+          const now = Date.now();
+          if (lastGpsTimestampRef.current && (now - lastGpsTimestampRef.current > systemConfig.gpsWatchdogSpeed)) {
+            console.warn("GPS Stale - Restarting watch...");
+            setGpsVersion(v => v + 1);
+          }
+        }
+      }, 3000);
+    };
+
+    if (isLive) startWatchdog();
+    
+    // GPS Boost: Extra polling to force high-power state on some mobile devices
+    let boostInterval: number | null = null;
+    if (isLive) {
+      boostInterval = window.setInterval(() => {
+        navigator.geolocation.getCurrentPosition(() => {}, () => {}, { enableHighAccuracy: true, maximumAge: 0 });
+      }, 5000);
+    }
+
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, speed, accuracy, altitude, heading } =
           position.coords;
 
-        // --- NOISE FILTER & ACCURACY OPTIMIZATION ---
-        // 1. Update basic GPS states
+        // --- ULTRA-PRECISION ACCURACY OPTIMIZATION ---
         setAccuracy(accuracy);
         setGpsAltitude(altitude);
         setGpsHeading(heading);
 
-        // Calculate Hz
+        // Reset watchdog upon receiving valid data
+        if (isLiveRef.current) startWatchdog();
+
+        // Calculate Hz with higher precision
         if (lastGpsTimestampRef.current) {
           const diff = position.timestamp - lastGpsTimestampRef.current;
           if (diff > 0) {
@@ -1686,10 +1929,13 @@ export default function App() {
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
+      if (watchdog) window.clearInterval(watchdog);
+      if (boostInterval) window.clearInterval(boostInterval);
     };
   }, [gpsVersion]); // ONLY depend on version (manual reset)
 
   const calibrateGPS = () => {
+    playSound("click");
     setGpsVersion((v) => v + 1);
     // Force a small notification or just trust the re-mount
   };
@@ -1747,7 +1993,7 @@ export default function App() {
         avgHz: avgHz || 0,
         splits: [...effectiveSplits],
         telemetry: [...sessionTelemetryRef.current],
-        username: currentUser.username,
+        username: currentUser ? currentUser.username : localPilotName,
       };
 
       if (isLoggedIn && currentUser) {
@@ -1762,9 +2008,11 @@ export default function App() {
     isActiveRef.current = false;
     setIsLive(false);
     isLiveRef.current = false;
+    playSound("click");
   };
 
   const deleteHistory = async (id: string) => {
+    playSound("click");
     if (isLoggedIn && currentUser) {
       try {
         await deleteDoc(doc(db, "users", currentUser.username, "runs", id));
@@ -1777,7 +2025,9 @@ export default function App() {
   };
 
   const clearHistory = async () => {
+    playSound("click");
     if (window.confirm(t.deleteConfirm)) {
+      playSound("error");
       if (isLoggedIn && currentUser) {
         try {
           const q = query(collection(db, "users", currentUser.username, "runs"));
@@ -1799,6 +2049,37 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#111111] text-gray-100 font-sans selection:bg-violet-500/30 overflow-x-hidden">
       <AnimatePresence>
+        {broadcastMessage && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
+              className="bg-gray-900 border border-violet-500/30 rounded-3xl p-8 max-w-sm w-full shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-violet-600">
+                <motion.div 
+                  className="h-full bg-white/50"
+                  initial={{ width: "100%" }} animate={{ width: "0%" }}
+                  transition={{ duration: 15, ease: "linear" }}
+                  onAnimationComplete={() => setBroadcastMessage("")}
+                />
+              </div>
+              <div className="bg-violet-600/20 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Megaphone className="w-8 h-8 text-violet-400" />
+              </div>
+              <h3 className="text-xl font-black text-white text-center uppercase mb-2">Notice</h3>
+              <p className="text-gray-300 text-center text-sm leading-relaxed mb-8">{broadcastMessage}</p>
+              <button 
+                onClick={() => setBroadcastMessage("")}
+                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-4 rounded-2xl transition-all uppercase text-xs tracking-widest shadow-lg shadow-violet-600/20"
+              >
+                Tutup Pesan
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
         {isOffline && (
           <motion.div 
             initial={{ y: -50 }} animate={{ y: 0 }} exit={{ y: -50 }}
@@ -1873,14 +2154,14 @@ export default function App() {
         <div className="absolute bottom-[-5%] right-[-5%] w-[30%] h-[30%] bg-blue-600/40 blur-[80px] rounded-full" />
       </div>
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         {!isLoggedIn ? (
           <motion.main
             key="login"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="relative z-10 max-w-lg mx-auto min-h-screen flex flex-col items-center justify-center p-6 pt-safe pb-safe touch-manipulation"
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           >
             <div className="w-full bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
@@ -1977,13 +2258,21 @@ export default function App() {
                   </div>
                 </div>
 
-                <button
+                <div className="bg-gray-900/40 rounded-xl p-3 border border-gray-800 flex items-start gap-3">
+                   <ShieldCheck className="w-3.5 h-3.5 text-green-500 mt-0.5" />
+                   <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest leading-relaxed">
+                     Privacy focused authentication. credentials are stored only on this device and are never saved in the online database for session persistence.
+                   </p>
+                </div>
+
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
                   type="submit"
-                  className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-violet-600/20 active:scale-95 transition-all text-xs uppercase tracking-[0.2em] italic flex items-center justify-center gap-2 mt-4"
+                  className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-violet-600/20 transition-all text-xs uppercase tracking-[0.2em] italic flex items-center justify-center gap-2 mt-4"
                 >
                   {t.signIn}
                   <ChevronRight className="w-4 h-4" />
-                </button>
+                </motion.button>
               </form>
 
               <div className="mt-8 text-center">
@@ -2092,46 +2381,50 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex items-center gap-0.5 bg-gray-950/80 p-0.5 rounded-full border border-gray-800">
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => navigateView("dashboard")}
                     className={`p-1.5 rounded-full transition-all ${view === "dashboard" ? "bg-violet-500 text-white shadow-lg" : "text-gray-500 hover:text-white"}`}
                     title={t.dashboard}
                   >
                     <Gauge className="w-4 h-4" />
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => navigateView("charts")}
                     className={`p-1.5 rounded-full transition-all ${view === "charts" ? "bg-violet-500 text-white shadow-lg" : "text-gray-500 hover:text-white"}`}
                     title={t.charts}
                   >
                     <Activity className="w-4 h-4" />
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => navigateView("history")}
                     className={`p-1.5 rounded-full transition-all ${view === "history" ? "bg-violet-500 text-white shadow-lg" : "text-gray-500 hover:text-white"}`}
                     title={t.history}
                   >
                     <HistoryIcon className="w-4 h-4" />
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => navigateView("settings")}
                     className={`p-1.5 rounded-full transition-all ${view === "settings" ? "bg-violet-500 text-white shadow-lg" : "text-gray-500 hover:text-white"}`}
                     title={t.settings}
                   >
                     <Settings className="w-4 h-4" />
-                  </button>
+                  </motion.button>
                 </div>
               </header>
             )}
 
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence initial={false}>
               {view === "welcome" && (
                 <motion.div
                   key="welcome"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  transition={{ duration: 0.2 }}
+                  initial={{ opacity: 0, scale: 1.05 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
                   className="flex-1 flex flex-col items-center justify-center text-center px-4"
                 >
                   <motion.div
@@ -2208,10 +2501,10 @@ export default function App() {
               {view === "dashboard" && (
                 <motion.div
                   key="dashboard"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
                   className="flex-1 flex flex-col gap-6 will-change-[opacity,transform]"
                 >
                   {/* Primary Speed Display */}
@@ -2467,22 +2760,24 @@ export default function App() {
                         >
                           {isGpsLocked ? t.signalReady : t.waitingSignal}
                         </div>
-                        <button
+                        <motion.button
+                          whileTap={{ scale: 0.96 }}
                           onClick={handleStart}
-                          className="w-full bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-violet-950/20 active:scale-[0.96] transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight group"
+                          className="w-full bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-violet-950/20 transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight group"
                         >
                           <Play className="w-6 h-6 fill-current group-hover:scale-110 transition-transform" />
                           {t.startTest}
-                        </button>
+                        </motion.button>
                       </div>
                     ) : (
-                      <button
+                      <motion.button
+                        whileTap={{ scale: 0.96 }}
                         onClick={handleStop}
-                        className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-red-950/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight"
+                        className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-red-950/20 transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight"
                       >
                         <CircleStop className="w-6 h-6" />
                         {t.stopSave}
-                      </button>
+                      </motion.button>
                     )}
 
                     <p className="text-[9px] text-center text-gray-500 leading-relaxed max-w-[280px] mx-auto uppercase tracking-tighter">
@@ -2495,11 +2790,11 @@ export default function App() {
               {view === "history" && (
                 <motion.div
                   key="history"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="flex-1 flex flex-col gap-4 will-change-[opacity]"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="flex-1 flex flex-col gap-4 will-change-[opacity,transform]"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">
@@ -2748,11 +3043,11 @@ export default function App() {
               {view === "charts" && (
                 <motion.div
                   key="charts"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="flex-1 flex flex-col gap-6 will-change-[opacity]"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="flex-1 flex flex-col gap-6 will-change-[opacity,transform]"
                 >
                   {/* LIVE MONITOR SECTION */}
                   <div className="bg-gray-900/80 rounded-[2.5rem] border border-violet-500/20 p-6 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
@@ -3231,12 +3526,63 @@ export default function App() {
               {view === "settings" && (
                 <motion.div
                   key="settings"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="flex-1 flex flex-col gap-6 will-change-[opacity]"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="flex-1 flex flex-col gap-6 will-change-[opacity,transform]"
                 >
+                  <section className="bg-gray-900/60 rounded-3xl border border-gray-800 p-6">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center gap-2">
+                      <UserIcon className="w-4 h-4" /> {t.localPilot}
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1 block mb-2">{t.displayName}</label>
+                        <input
+                          type="text"
+                          value={localPilotName}
+                          onChange={(e) => setLocalPilotName(e.target.value)}
+                          placeholder="Local Racer"
+                          className="w-full bg-gray-950/80 border border-gray-800 rounded-xl p-4 text-xs font-bold text-white focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all placeholder:text-gray-700"
+                        />
+                        <p className="text-[8px] text-gray-600 font-bold uppercase mt-2 ml-1">{t.identifyLocal}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-gray-950/50 border border-gray-800 rounded-2xl">
+                        <div className="flex items-center gap-3">
+                          <Volume2 className="w-4 h-4 text-violet-400" />
+                          <span className="text-xs font-bold text-white uppercase italic">{t.soundEnabled}</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSoundEnabled(!soundEnabled);
+                            playSound("click");
+                          }}
+                          className={`w-12 h-6 rounded-full transition-all flex items-center p-1 ${soundEnabled ? "bg-violet-600" : "bg-gray-800"}`}
+                        >
+                          <div className={`w-4 h-4 rounded-full bg-white transition-all transform ${soundEnabled ? "translate-x-6" : "translate-x-0"}`} />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-gray-950/50 border border-gray-800 rounded-2xl">
+                        <div className="flex items-center gap-3">
+                          <SmartphoneNfc className="w-4 h-4 text-violet-400" />
+                          <span className="text-xs font-bold text-white uppercase italic">VIBRATION</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSystemConfig({ ...systemConfig, vibrationEnabled: !systemConfig.vibrationEnabled });
+                            playSound("click");
+                          }}
+                          className={`w-12 h-6 rounded-full transition-all flex items-center p-1 ${systemConfig.vibrationEnabled ? "bg-violet-600" : "bg-gray-800"}`}
+                        >
+                          <div className={`w-4 h-4 rounded-full bg-white transition-all transform ${systemConfig.vibrationEnabled ? "translate-x-6" : "translate-x-0"}`} />
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+
                   <section className="bg-gray-900/60 rounded-3xl border border-gray-800 p-6">
                     <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center gap-2">
                       <Gauge className="w-4 h-4" /> {t.language}
@@ -3367,32 +3713,38 @@ export default function App() {
                       </h3>
 
                       {currentUser?.role === "owner" && (
-                        <div className="grid grid-cols-2 gap-4 mb-8">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                           <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
-                            <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Total System Users</p>
-                            <p className="text-2xl font-black text-violet-400 leading-none">{users.length}</p>
+                            <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Total Users</p>
+                            <p className="text-2xl font-black text-violet-400 leading-none">{systemStats.totalUsers}</p>
                           </div>
                           <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
-                            <p className="text-[10px] text-gray-500 uppercase font-black mb-1">System Race Logs</p>
-                            <p className="text-2xl font-black text-violet-400 leading-none">
-                              {totalSystemRuns}
-                            </p>
+                            <p className="text-[10px] text-gray-500 uppercase font-black mb-1">System Distance</p>
+                            <p className="text-2xl font-black text-violet-400 leading-none">{systemStats.totalDist} <span className="text-[10px]">KM</span></p>
                           </div>
-                          <div className="col-span-2 bg-violet-600/5 rounded-2xl p-4 border border-violet-500/20">
+                          <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
+                            <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Avg Accuracy</p>
+                            <p className="text-2xl font-black text-violet-400 leading-none">{systemStats.avgAcc} <span className="text-[10px]">M</span></p>
+                          </div>
+                          <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
+                            <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Record Speed</p>
+                            <p className="text-2xl font-black text-violet-400 leading-none">{systemStats.peakSpeed} <span className="text-[10px]">KM/H</span></p>
+                          </div>
+                          <div className="col-span-2 lg:col-span-4 bg-violet-600/5 rounded-2xl p-4 border border-violet-500/20">
                              <p className="text-[10px] text-violet-400 uppercase font-black mb-2 flex items-center gap-2">
-                               <Trophy className="w-3 h-3" /> System Record (Fastest)
+                               <Trophy className="w-3 h-3" /> System Record (Fastest Time)
                              </p>
                              <div className="flex items-end justify-between">
                                <div>
                                  {fastestRun ? (
                                    <>
                                      <p className="text-3xl font-black text-white leading-none mb-1">{(fastestRun.totalTime / 1000).toFixed(3)}s</p>
-                                     <p className="text-[10px] text-gray-500 font-black uppercase">Race {fastestRun.totalDistance}m</p>
+                                     <p className="text-[10px] text-gray-500 font-black uppercase">Race {fastestRun.totalDistance}m by {fastestRun.username}</p>
                                    </>
                                  ) : <p className="text-sm text-gray-600">No logs yet</p>}
                                </div>
                                <div className="text-right">
-                                 <p className="text-[8px] text-gray-600 font-bold uppercase tracking-widest">Global Ranking Active</p>
+                                 <p className="text-[8px] text-gray-600 font-bold uppercase tracking-widest leading-relaxed">Verified Historical<br/>Global Benchmarking</p>
                                </div>
                              </div>
                           </div>
@@ -3466,10 +3818,77 @@ export default function App() {
                              </button>
                           </div>
 
+                          <div className="border-t border-gray-800 pt-4 space-y-4">
+                             <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500">Advanced Config</h4>
+                             <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-black/40 p-3 rounded-xl border border-gray-800 flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-gray-400">Interaction Sound</span>
+                                  <button 
+                                    onClick={() => {
+                                      setSoundEnabled(!soundEnabled);
+                                      playSound("click");
+                                    }}
+                                    className={`w-8 h-4 rounded-full relative transition-all ${soundEnabled ? 'bg-violet-600' : 'bg-gray-800'}`}
+                                  >
+                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${soundEnabled ? 'left-4.5' : 'left-0.5'}`} />
+                                  </button>
+                                </div>
+                                <div className="bg-black/40 p-3 rounded-xl border border-gray-800 flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-gray-400">Vibration Feedback</span>
+                                  <button 
+                                    onClick={() => updateSystemConfigProperty("vibrationEnabled", !systemConfig.vibrationEnabled)}
+                                    className={`w-8 h-4 rounded-full relative transition-all ${systemConfig.vibrationEnabled ? 'bg-violet-600' : 'bg-gray-800'}`}
+                                  >
+                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${systemConfig.vibrationEnabled ? 'left-4.5' : 'left-0.5'}`} />
+                                  </button>
+                                </div>
+                                <div className="bg-black/40 p-3 rounded-xl border border-gray-800 flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-gray-400">Min Accuracy (m)</span>
+                                  <input 
+                                    type="number"
+                                    value={systemConfig.minAccuracy}
+                                    onChange={(e) => updateSystemConfigProperty("minAccuracy", parseInt(e.target.value))}
+                                    className="bg-transparent border-none focus:ring-0 text-[10px] font-mono text-violet-400 text-right w-12"
+                                  />
+                                </div>
+                             </div>
+                             <div className="bg-black/40 p-4 rounded-xl border border-gray-800">
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className="text-[10px] font-bold text-gray-400">GPS Watchdog (ms)</label>
+                                  <span className="text-[10px] text-violet-400 font-mono">{systemConfig.gpsWatchdogSpeed}ms</span>
+                                </div>
+                                <input 
+                                  type="range"
+                                  min="1000"
+                                  max="15000"
+                                  step="500"
+                                  value={systemConfig.gpsWatchdogSpeed}
+                                  onChange={(e) => updateSystemConfigProperty("gpsWatchdogSpeed", parseInt(e.target.value))}
+                                  className="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                                />
+                                <div className="flex justify-between mt-1">
+                                  <span className="text-[8px] text-gray-600 font-bold">FAST (1s)</span>
+                                  <span className="text-[8px] text-gray-600 font-bold">STRICT (15s)</span>
+                                </div>
+                             </div>
+                          </div>
+
                           <div className="border-t border-gray-800 pt-4">
-                            <label className="text-[9px] text-gray-500 font-black uppercase flex items-center gap-2 mb-2">
-                              <ListRestart className="w-3 h-3" /> Global Audit Logs
-                            </label>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-[9px] text-gray-500 font-black uppercase flex items-center gap-2">
+                                <ListRestart className="w-3 h-3" /> Global Audit Logs
+                              </label>
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={exportSystemData}
+                                  className="text-[8px] font-black text-violet-400 hover:text-violet-300 uppercase tracking-tighter"
+                                >Export Stats</button>
+                                <button 
+                                  onClick={purgeAuditLogs}
+                                  className="text-[8px] font-black text-red-500 hover:text-red-400 uppercase tracking-tighter"
+                                >Clear All</button>
+                              </div>
+                            </div>
                             <div className="space-y-1.5 max-h-32 overflow-auto pr-2 custom-scrollbar">
                               {auditLogs.map((log, idx) => (
                                 <div key={idx} className="bg-black/40 p-2 rounded-lg border border-gray-900 flex justify-between items-start gap-3">
@@ -3607,12 +4026,30 @@ export default function App() {
                               {t.userList}
                             </p>
                             {currentUser?.role === "owner" && (
-                              <button
-                                onClick={handleMasterReset}
-                                className="text-[8px] bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-2 py-1 rounded-md border border-red-500/20 font-black transition-all"
-                              >
-                                MASTER RESET
-                              </button>
+                              <div className="flex gap-2">
+                                {isBulkManaging && (
+                                  <button 
+                                    onClick={handleBulkUserDelete}
+                                    disabled={selectedUsers.length === 0}
+                                    className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded bg-red-600/10 border border-red-500/20 shadow-lg ${selectedUsers.length > 0 ? "text-red-500 animate-pulse" : "text-gray-700 opacity-50"}`}
+                                  >Delete ({selectedUsers.length})</button>
+                                )}
+                                <button 
+                                  onClick={() => {
+                                    setIsBulkManaging(!isBulkManaging);
+                                    setSelectedUsers([]);
+                                  }}
+                                  className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded border transition-all ${isBulkManaging ? "bg-amber-600/20 border-amber-500 text-amber-500" : "bg-violet-600/10 border-violet-500/20 text-violet-400"}`}
+                                >
+                                  {isBulkManaging ? "Cancel Bulk" : "Bulk Manage"}
+                                </button>
+                                <button
+                                  onClick={handleMasterReset}
+                                  className="text-[8px] bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-2 py-1 rounded-md border border-red-500/20 font-black transition-all"
+                                >
+                                  MASTER RESET
+                                </button>
+                              </div>
                             )}
                           </div>
 
@@ -3649,16 +4086,31 @@ export default function App() {
                             .map((u, i) => (
                             <div
                               key={i}
-                              className="flex items-center justify-between p-3 bg-gray-950/50 rounded-xl border border-gray-800/50"
+                              className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isBulkManaging && selectedUsers.includes(u.username) && u.role !== 'owner' ? 'bg-violet-500/10 border-violet-500/50' : 'bg-gray-950/50 border-gray-800/50'}`}
                             >
-                              <div className="flex flex-col flex-1">
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className={`w-2 h-2 rounded-full ${u.role === "owner" ? "bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.5)]" : u.role === "admin" ? "bg-violet-500 shadow-[0_0_5px_rgba(139,92,246,0.5)]" : "bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]"}`}
-                                  />
-                                  <span className="text-xs font-bold leading-none">
-                                    {u.username}
-                                  </span>
+                              <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                                {isBulkManaging && u.role !== "owner" && (
+                                  <div 
+                                    onClick={() => {
+                                      setSelectedUsers(prev => 
+                                        prev.includes(u.username) 
+                                          ? prev.filter(un => un !== u.username)
+                                          : [...prev, u.username]
+                                      );
+                                    }}
+                                    className={`w-4 h-4 rounded border flex items-center justify-center transition-all cursor-pointer ${selectedUsers.includes(u.username) ? "bg-violet-600 border-violet-500" : "bg-black border-gray-800"}`}
+                                  >
+                                    {selectedUsers.includes(u.username) && <CheckSquare className="w-2.5 h-2.5 text-white" />}
+                                  </div>
+                                )}
+                                <div className="flex flex-col flex-1 overflow-hidden">
+                                  <div className="flex items-center gap-3">
+                                    <div
+                                      className={`w-2 h-2 rounded-full ${u.role === "owner" ? "bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.5)]" : u.role === "admin" ? "bg-violet-500 shadow-[0_0_5px_rgba(139,92,246,0.5)]" : "bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]"}`}
+                                    />
+                                    <span className="text-xs font-bold leading-none truncate pr-2">
+                                      {u.username}
+                                    </span>
                                   {currentUser?.role === "owner" && u.role !== "owner" && (
                                      <div className="flex gap-1 ml-auto">
                                         {u.role === "customer" ? (
@@ -3689,9 +4141,19 @@ export default function App() {
                                   </div>
                                 )}
                               </div>
-                              <div className="flex items-center gap-2 ml-4">
+                            </div>
+                            <div className="flex items-center gap-2 ml-4">
                                 {(currentUser?.role === "owner" || (u.username !== currentUser?.username && u.role === "customer")) && (
                                   <div className="flex gap-1 items-center">
+                                    {currentUser?.role === "owner" && u.role !== "owner" && (
+                                      <button
+                                        onClick={() => toggleUserBan(u)}
+                                        title={u.isBanned ? "Unban User" : "Ban User"}
+                                        className={`p-1.5 rounded-lg border transition-all active:scale-95 ${u.isBanned ? 'bg-red-600 border-red-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.3)]' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-red-500'}`}
+                                      >
+                                        <ShieldAlert className="w-3 h-3" />
+                                      </button>
+                                    )}
                                     {currentUser?.role === "owner" && (
                                       <button
                                         onClick={() => {
@@ -3713,13 +4175,15 @@ export default function App() {
                                         <Smartphone className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {currentUser?.role === "owner" && globalRuns.some(r => r.username === u.username) && (
+                                    {currentUser?.role === "owner" && (
                                       <button
                                         onClick={async () => {
                                           if (window.confirm(`Wipe all history for ${u.username}?`)) {
                                             try {
-                                              const runsRef = collection(db, "users", u.username.toLowerCase(), "runs");
-                                              const snap = await getDocs(runsRef);
+                                              setAdminMessage(`Cleaning ${u.username}...`);
+                                              // Use collectionGroup search to find runs belonging to this user regardless of path casing
+                                              const q = query(collectionGroup(db, "runs"), where("username", "==", u.username));
+                                              const snap = await getDocs(q);
                                               const batch = writeBatch(db);
                                               snap.docs.forEach(docSnap => batch.delete(docSnap.ref));
                                               await batch.commit();
@@ -3769,6 +4233,33 @@ export default function App() {
                     <p className="text-[10px] text-violet-200/70 leading-relaxed font-medium uppercase tracking-wider">
                       Always ensure clear sky view for best results
                     </p>
+                  </div>
+
+                  <div className="bg-gray-950/80 rounded-3xl p-6 border border-gray-800 border-t-red-500/30">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-red-500 mb-6 flex items-center gap-2">
+                      <Trash2 className="w-4 h-4" /> Privacy & Local Data
+                    </h3>
+                    <div className="space-y-4">
+                      <button 
+                        onClick={() => {
+                          playSound("click");
+                          if(window.confirm("This will wipe your 'Remember Me' status and local racer name. Continue?")) {
+                            playSound("error");
+                            localStorage.removeItem("race_logged_in");
+                            localStorage.removeItem("race_current_user");
+                            localStorage.removeItem("race_local_pilot");
+                            window.location.reload();
+                          }
+                        }}
+                        className="w-full flex items-center justify-between p-4 bg-red-600/5 border border-red-500/20 rounded-2xl group hover:bg-red-600 transition-all text-left"
+                      >
+                        <div>
+                          <span className="text-xs font-black text-red-500 group-hover:text-white uppercase italic">Wipe Device Memory</span>
+                          <p className="text-[8px] text-gray-700 group-hover:text-red-100 font-bold uppercase mt-1">Clears local pilot name and login session</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-red-500 group-hover:text-white" />
+                      </button>
+                    </div>
                   </div>
 
                   <button

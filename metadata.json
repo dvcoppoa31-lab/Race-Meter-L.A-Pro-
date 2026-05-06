@@ -2,7 +2,9 @@
   "name": "DRAG RACE L.A PRO+",
   "description": "High-performance GPS race meter for tracking speed and distance splits (60ft, 100m, 201m, 203m) in real-time.",
   "requestFramePermissions": [
-    "geolocation"
+    "geolocation",
+    "screen-wake-lock",
+    "wake-lock"
   ],
   "majorCapabilities": []
 }
