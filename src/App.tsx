@@ -697,6 +697,7 @@ export default function App() {
   const [maxSpeed, setMaxSpeed] = useState(0); // km/h
   const [elapsedTime, setElapsedTime] = useState(0); // ms
   const [distanceCovered, setDistanceCovered] = useState(0); // meters
+  const distanceCoveredRef = useRef(0);
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [gpsHz, setGpsHz] = useState(0);
   const lastGpsTimestampRef = useRef<number | null>(null);
@@ -1189,7 +1190,8 @@ export default function App() {
   // --- Firebase History Sync ---
   useEffect(() => {
     if (isLoggedIn && currentUser) {
-      const q = query(collection(db, "users", currentUser.username, "runs"));
+      const usernameKey = currentUser.username.toLowerCase();
+      const q = query(collection(db, "users", usernameKey, "runs"));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const firestoreHistory: RaceRun[] = [];
         snapshot.forEach((doc) => {
@@ -1200,7 +1202,7 @@ export default function App() {
         
         setHistory(firestoreHistory);
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, `users/${currentUser?.username}/runs`);
+        handleFirestoreError(error, OperationType.GET, `users/${currentUser?.username?.toLowerCase()}/runs`);
       });
       return () => unsubscribe();
     } else if (!isLoggedIn) {
@@ -1314,8 +1316,9 @@ export default function App() {
         const localHistory: RaceRun[] = JSON.parse(localHistoryRaw);
         if (localHistory.length > 0) {
           const batch = writeBatch(db);
+          const usernameKey = user.username.toLowerCase();
           localHistory.forEach((run) => {
-            const runRef = doc(db, "users", user.username, "runs", run.id);
+            const runRef = doc(db, "users", usernameKey, "runs", run.id);
             batch.set(runRef, run);
           });
           await batch.commit();
@@ -1607,6 +1610,9 @@ export default function App() {
     elapsedTimeRef.current = elapsedTime;
   }, [elapsedTime]);
   useEffect(() => {
+    distanceCoveredRef.current = distanceCovered;
+  }, [distanceCovered]);
+  useEffect(() => {
     peakGRef.current = peakG;
   }, [peakG]);
   useEffect(() => {
@@ -1873,45 +1879,41 @@ export default function App() {
           }
 
           const dist = calculateDistance(lastPointRef.current, currentPoint);
+          const totalDist = distanceCoveredRef.current + dist;
+          
+          distanceCoveredRef.current = totalDist;
+          setDistanceCovered(totalDist);
 
-          setDistanceCovered((prev) => {
-            const totalDist = prev + dist;
-
-            // Check and update splits using the closure-safe value
-            setSplits((currentSplits) => {
-              let updated = false;
-              const nextSplits = currentSplits.map((s) => {
-                if (!s.time && totalDist >= s.distance) {
-                  updated = true;
-                  return {
-                    ...s,
-                    time: elapsedTimeRef.current / 1000,
-                    speedAtSplit: speedKmr,
-                  };
-                }
-                return s;
-              });
-
-              if (updated) {
-                splitsRef.current = nextSplits;
-
-                const maxTargetDist =
-                  selectedTargetsRef.current.length > 0
-                    ? Math.max(
-                        ...selectedTargetsRef.current.map((t) => t.distance),
-                      )
-                    : 0;
-
-                if (maxTargetDist > 0 && totalDist >= maxTargetDist) {
-                  handleStop(totalDist, elapsedTimeRef.current, nextSplits);
-                }
-              }
-
-              return nextSplits;
-            });
-
-            return totalDist;
+          // Check and update splits
+          let splitReached = false;
+          const nextSplits = splitsRef.current.map((s) => {
+            if (!s.time && totalDist >= s.distance) {
+              splitReached = true;
+              return {
+                ...s,
+                time: elapsedTimeRef.current / 1000,
+                speedAtSplit: speedKmr,
+              };
+            }
+            return s;
           });
+
+          if (splitReached) {
+            splitsRef.current = nextSplits;
+            setSplits(nextSplits);
+          }
+
+          // Check for auto-stop condition
+          const maxTargetDist =
+            selectedTargetsRef.current.length > 0
+              ? Math.max(
+                  ...selectedTargetsRef.current.map((t) => t.distance),
+                )
+              : 0;
+
+          if (maxTargetDist > 0 && totalDist >= maxTargetDist) {
+            handleStop(totalDist, elapsedTimeRef.current, nextSplits);
+          }
 
           pointsRef.current.push(currentPoint);
           lastPointRef.current = currentPoint;
@@ -1943,10 +1945,16 @@ export default function App() {
   const handleStart = () => {
     setIsLive(true);
     setIsActive(false);
+    isActiveRef.current = false;
+    isLiveRef.current = true;
     setMaxSpeed(0);
+    maxSpeedRef.current = 0;
     setPeakG(0);
+    peakGRef.current = 0;
     setElapsedTime(0);
+    elapsedTimeRef.current = 0;
     setDistanceCovered(0);
+    distanceCoveredRef.current = 0;
     setSessionMaxAccuracy(null);
     sessionTelemetryRef.current = [];
     sessionHzValuesRef.current = [];
@@ -1970,10 +1978,10 @@ export default function App() {
       // If triggered by a button click event, finalDistance will be an object.
       // We only want numbers for automatic stops.
       const isAutoStop = typeof finalDistance === "number";
-      const effectiveDistance = isAutoStop ? finalDistance : distanceCovered;
+      const effectiveDistance = isAutoStop ? finalDistance : distanceCoveredRef.current;
       const effectiveTime =
-        typeof finalTime === "number" ? finalTime : elapsedTime;
-      const effectiveSplits = Array.isArray(finalSplits) ? finalSplits : splits;
+        typeof finalTime === "number" ? finalTime : elapsedTimeRef.current;
+      const effectiveSplits = Array.isArray(finalSplits) ? finalSplits : splitsRef.current;
 
       const avgHz =
         sessionHzValuesRef.current.length > 0
@@ -1981,15 +1989,17 @@ export default function App() {
             sessionHzValuesRef.current.length
           : gpsHz;
 
+      const calculatedAvgSpeed = (effectiveTime > 0) ? (effectiveDistance / (effectiveTime / 1000)) * 3.6 : 0;
+
       const newRun: RaceRun = {
         id: Date.now().toString(),
         date: Date.now(),
         totalDistance: effectiveDistance,
         totalTime: effectiveTime,
         maxSpeed: maxSpeedRef.current,
-        avgSpeed: (effectiveDistance / (effectiveTime / 1000)) * 3.6,
+        avgSpeed: isFinite(calculatedAvgSpeed) ? calculatedAvgSpeed : 0,
         peakG: peakGRef.current || 0,
-        accuracy: accuracy || 0,
+        accuracy: accuracyRef.current || 0,
         avgHz: avgHz || 0,
         splits: [...effectiveSplits],
         telemetry: [...sessionTelemetryRef.current],
@@ -1997,8 +2007,9 @@ export default function App() {
       };
 
       if (isLoggedIn && currentUser) {
-        setDoc(doc(db, "users", currentUser.username, "runs", newRun.id), newRun)
-          .catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${currentUser.username}/runs/${newRun.id}`));
+        const usernameKey = currentUser.username.toLowerCase();
+        setDoc(doc(db, "users", usernameKey, "runs", newRun.id), newRun)
+          .catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${usernameKey}/runs/${newRun.id}`));
       } else {
         setHistory((prev) => [newRun, ...prev]);
       }
@@ -2014,10 +2025,11 @@ export default function App() {
   const deleteHistory = async (id: string) => {
     playSound("click");
     if (isLoggedIn && currentUser) {
+      const usernameKey = currentUser.username.toLowerCase();
       try {
-        await deleteDoc(doc(db, "users", currentUser.username, "runs", id));
+        await deleteDoc(doc(db, "users", usernameKey, "runs", id));
       } catch (e) {
-        handleFirestoreError(e, OperationType.DELETE, `users/${currentUser.username}/runs/${id}`);
+        handleFirestoreError(e, OperationType.DELETE, `users/${usernameKey}/runs/${id}`);
       }
     } else {
       setHistory((prev) => prev.filter((h) => h.id !== id));
@@ -2029,8 +2041,9 @@ export default function App() {
     if (window.confirm(t.deleteConfirm)) {
       playSound("error");
       if (isLoggedIn && currentUser) {
+        const usernameKey = currentUser.username.toLowerCase();
         try {
-          const q = query(collection(db, "users", currentUser.username, "runs"));
+          const q = query(collection(db, "users", usernameKey, "runs"));
           const snapshot = await getDocs(q);
           const batch = writeBatch(db);
           snapshot.forEach((doc) => {
@@ -2038,7 +2051,7 @@ export default function App() {
           });
           await batch.commit();
         } catch (e) {
-          handleFirestoreError(e, OperationType.DELETE, `users/${currentUser.username}/runs`);
+          handleFirestoreError(e, OperationType.DELETE, `users/${usernameKey}/runs`);
         }
       } else {
         setHistory([]);
