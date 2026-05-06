@@ -48,9 +48,10 @@
               "accel": { "type": "number" }
             }
           }
-        }
+        },
+        "username": { "type": "string" }
       },
-      "required": ["id", "date", "totalDistance", "totalTime", "maxSpeed"]
+      "required": ["id", "date", "totalDistance", "totalTime", "maxSpeed", "username"]
     }
   },
   "firestore": {
@@ -61,6 +62,22 @@
     "users/{username}/runs/{runId}": {
       "schema": "RaceRun",
       "description": "Race runs for a specific user"
+    },
+    "runs/{runId} (collectionGroup)": {
+      "schema": "RaceRun",
+      "description": "All race runs in the system, accessible via collectionGroup query"
+    },
+    "system/broadcast": {
+      "schema": { "type": "object", "properties": { "message": { "type": "string" } } },
+      "description": "System broadcast message"
+    },
+    "system/config": {
+      "schema": { "type": "object", "properties": { "maintenanceMode": { "type": "boolean" }, "systemName": { "type": "string" } } },
+      "description": "System branding and mode"
+    },
+    "system_logs/{logId}": {
+      "schema": { "type": "object", "properties": { "action": { "type": "string" }, "detail": { "type": "string" }, "user": { "type": "string" }, "timestamp": { "type": "object" } } },
+      "description": "Audit logs"
     }
   }
 }

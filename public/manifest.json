@@ -1,15 +1,14 @@
 {
-  "name": "Race Dyno Pro",
-  "short_name": "DynoPro",
-  "description": "High-precision GPS racing telemetry and performance monitor.",
+  "name": "DRAG RACE ANALYTICS",
+  "short_name": "DRAG RACE",
+  "description": "Professional Drag Race Telemetry & Analytics",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
-  "theme_color": "#8b5cf6",
-  "orientation": "portrait",
+  "theme_color": "#7C3AED",
   "icons": [
     {
-      "src": "https://img.icons8.com/stencil/512/000000/racing-flag.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

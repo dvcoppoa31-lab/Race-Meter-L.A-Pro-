@@ -81,7 +81,9 @@ import {
   orderBy,
   limit,
   addDoc,
-  serverTimestamp
+  serverTimestamp,
+  deleteField,
+  collectionGroup
 } from 'firebase/firestore';
 
 enum OperationType {
@@ -567,6 +569,7 @@ interface RaceRun {
   avgHz?: number;
   splits: Split[];
   telemetry: { time: number; speed: number; accel: number }[];
+  username?: string;
 }
 
 interface GPSPoint {
@@ -759,6 +762,27 @@ export default function App() {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [systemName, setSystemName] = useState("DRAG RACE");
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [globalRuns, setGlobalRuns] = useState<any[]>([]);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  // --- Performance Optimized Calculations ---
+  const fastestRun = useMemo(() => {
+    if (globalRuns.length === 0) return null;
+    return [...globalRuns].sort((a, b) => (a.totalTime || 0) - (b.totalTime || 0))[0];
+  }, [globalRuns]);
+
+  const totalSystemRuns = useMemo(() => globalRuns.length, [globalRuns]);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [hasAgreedToSafety, setHasAgreedToSafety] = useState(() => localStorage.getItem('race_safety_agreed') === 'true');
   const wakeLockRef = useRef<any>(null);
@@ -996,6 +1020,18 @@ export default function App() {
     }
   }, [isLoggedIn, currentUser?.username]);
 
+  // --- Global History Sync (Owner/Admin) ---
+  useEffect(() => {
+    if (isLoggedIn && (currentUser?.role === "admin" || currentUser?.role === "owner")) {
+      const q = query(collectionGroup(db, "runs"), orderBy("date", "desc"), limit(100));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const fires = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+        setGlobalRuns(fires);
+      });
+      return () => unsubscribe();
+    }
+  }, [isLoggedIn, currentUser?.role]);
+
   // Save users to localStorage
   useEffect(() => {
     localStorage.setItem("race_users", JSON.stringify(users));
@@ -1174,7 +1210,9 @@ export default function App() {
       const runsData = runsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       // 3. Create new user doc
-      await setDoc(doc(db, "users", newLower), newData);
+      const userToSave = { ...newData };
+      if (userToSave.boundDeviceId === undefined) delete userToSave.boundDeviceId;
+      await setDoc(doc(db, "users", newLower), userToSave);
 
       // 4. Migrate runs
       if (runsData.length > 0) {
@@ -1218,7 +1256,9 @@ export default function App() {
       await handleRenameUser(userToEdit.username, editForm);
     } else {
       try {
-        await setDoc(doc(db, "users", editForm.username.toLowerCase()), editForm, { merge: true });
+        const userToSave = { ...editForm };
+        if (userToSave.boundDeviceId === undefined) delete userToSave.boundDeviceId;
+        await setDoc(doc(db, "users", editForm.username.toLowerCase()), userToSave, { merge: true });
         setUsers(prev => prev.map(u => u.username === userToEdit.username ? editForm : u));
         if (currentUser?.username === userToEdit.username) {
           setCurrentUser(editForm);
@@ -1313,7 +1353,7 @@ export default function App() {
       const userDoc = await getDoc(userRef);
       if (userDoc.exists()) {
         const userData = userDoc.data() as User;
-        await setDoc(userRef, { ...userData, boundDeviceId: undefined });
+        await setDoc(userRef, { ...userData, boundDeviceId: deleteField() });
         setAdminMessage(TRANSLATIONS[lang].resetDevice + " OK");
       }
     } catch (err) {
@@ -1707,6 +1747,7 @@ export default function App() {
         avgHz: avgHz || 0,
         splits: [...effectiveSplits],
         telemetry: [...sessionTelemetryRef.current],
+        username: currentUser.username,
       };
 
       if (isLoggedIn && currentUser) {
@@ -1757,6 +1798,36 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#111111] text-gray-100 font-sans selection:bg-violet-500/30 overflow-x-hidden">
+      <AnimatePresence>
+        {isOffline && (
+          <motion.div 
+            initial={{ y: -50 }} animate={{ y: 0 }} exit={{ y: -50 }}
+            className="fixed top-0 left-0 right-0 z-[100] bg-amber-600 text-white text-[10px] font-black uppercase py-1 text-center flex items-center justify-center gap-2"
+          >
+            <ShieldAlert className="w-3 h-3" /> Offline Mode - Some features may be limited
+          </motion.div>
+        )}
+        {maintenanceMode && currentUser?.role !== "owner" && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-8 text-center"
+          >
+            <Lock className="w-16 h-16 text-violet-500 mb-6 animate-pulse" />
+            <h2 className="text-4xl font-black text-white uppercase mb-2 tracking-tighter">{systemName}</h2>
+            <p className="text-violet-500 font-bold uppercase tracking-widest text-[10px] mb-8">System Upgrade in Progress</p>
+            <div className="w-12 h-1 bg-violet-500/20 rounded-full mb-8 overflow-hidden">
+              <motion.div 
+                className="h-full bg-violet-500"
+                animate={{ x: [-50, 50] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              />
+            </div>
+            <p className="text-gray-500 text-xs max-w-xs leading-relaxed uppercase font-bold tracking-tight">
+              Tuning current engines for maximum performance. Standby for reconnection.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {!hasAgreedToSafety && isLoggedIn && (
           <motion.div
@@ -3304,10 +3375,7 @@ export default function App() {
                           <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
                             <p className="text-[10px] text-gray-500 uppercase font-black mb-1">System Race Logs</p>
                             <p className="text-2xl font-black text-violet-400 leading-none">
-                              {users.reduce((acc, u) => {
-                                const userHistory = (history as any)[u.username] || [];
-                                return acc + userHistory.length;
-                              }, 0)}
+                              {totalSystemRuns}
                             </p>
                           </div>
                           <div className="col-span-2 bg-violet-600/5 rounded-2xl p-4 border border-violet-500/20">
@@ -3316,16 +3384,12 @@ export default function App() {
                              </p>
                              <div className="flex items-end justify-between">
                                <div>
-                                 {(() => {
-                                   const allRuns = (Object.entries(history) as any).flatMap(([usr, runs]: [string, any[]]) => runs.map(r => ({ ...r, username: usr })));
-                                   const fastest = allRuns.sort((a: any, b: any) => (a.speed || 0) - (b.speed || 0))[0];
-                                   return fastest ? (
-                                     <>
-                                       <p className="text-3xl font-black text-white leading-none mb-1">{fastest.speed}s</p>
-                                       <p className="text-[10px] text-gray-500 font-black uppercase">Held by {fastest.username}</p>
-                                     </>
-                                   ) : <p className="text-sm text-gray-600">No logs yet</p>;
-                                 })()}
+                                 {fastestRun ? (
+                                   <>
+                                     <p className="text-3xl font-black text-white leading-none mb-1">{(fastestRun.totalTime / 1000).toFixed(3)}s</p>
+                                     <p className="text-[10px] text-gray-500 font-black uppercase">Race {fastestRun.totalDistance}m</p>
+                                   </>
+                                 ) : <p className="text-sm text-gray-600">No logs yet</p>}
                                </div>
                                <div className="text-right">
                                  <p className="text-[8px] text-gray-600 font-bold uppercase tracking-widest">Global Ranking Active</p>
@@ -3649,7 +3713,7 @@ export default function App() {
                                         <Smartphone className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {currentUser?.role === "owner" && (history[u.username]?.length || 0) > 0 && (
+                                    {currentUser?.role === "owner" && globalRuns.some(r => r.username === u.username) && (
                                       <button
                                         onClick={async () => {
                                           if (window.confirm(`Wipe all history for ${u.username}?`)) {

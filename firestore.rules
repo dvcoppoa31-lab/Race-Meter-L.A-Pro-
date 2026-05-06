@@ -61,5 +61,10 @@ service cloud.firestore {
         allow list: if isValidId(username);
       }
     }
+
+    // Collection Group Access for Global Stats
+    match /{path=**}/runs/{runId} {
+      allow read: if true; // In a real app, restrict to admins
+    }
   }
 }
