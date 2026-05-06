@@ -2062,7 +2062,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#111111] text-gray-100 font-sans selection:bg-violet-500/30 overflow-x-hidden">
       <AnimatePresence>
-        {broadcastMessage && (
+        {broadcastMessage && currentUser?.role !== "owner" && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6"
