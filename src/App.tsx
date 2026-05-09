@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Trash2,
   Plus,
+  RefreshCw,
   Info,
   Flag,
   Crosshair,
@@ -47,11 +48,14 @@ import {
   ShieldAlert,
   Edit2,
   Lock,
+  Unlock,
+  CheckCircle2,
   Settings2,
   ListRestart,
   ShieldCheck,
   Volume2,
   SmartphoneNfc,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -196,6 +200,11 @@ interface Translations {
   safetyNotice: string;
   disclaimer: string;
   iAgree: string;
+  lockMode: string;
+  lockDescription: string;
+  saving: string;
+  saved: string;
+  forceLaunch: string;
 }
 
 const TRANSLATIONS: Record<Language, Translations> = {
@@ -203,7 +212,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     welcome: "SELAMAT DATANG",
     elitePerformance: "Meter Performa PRO+",
     precisionGPS:
-      "lihat dan catat performa kendaraan mu dengan aplikasi DRAG RACE L.A PRO+",
+      "lihat dan catat performa kendaraan mu dengan aplikasi RACE METER L.A PRO+",
     enterTrack: "MASUK KE TRACK",
     dashboard: "Dasbor",
     history: "Histori",
@@ -241,7 +250,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     calibrate: "Kalibrasi",
     warningTitle: "PERHATIAN",
     warningMessage:
-      "Gunakan DRAG RACE pada saat cerah tidak tertutup awan. Rekomendasi pada saat malam hari agar sinyal GPS lebih stabil.",
+      "Gunakan RACE METER pada saat cerah tidak tertutup awan. Rekomendasi pada saat malam hari agar sinyal GPS lebih stabil.",
     safetyNotice: "PEMBERITAHUAN KESELAMATAN",
     disclaimer: "Aplikasi ini dirancang untuk penggunaan di lintasan tertutup. Jangan gunakan di jalan umum. Penggunaan di jalan raya dapat membahayakan diri sendiri dan orang lain. Data bergantung pada akurasi GPS perangkat Anda.",
     iAgree: "SAYA MENGERTI & SETUJU",
@@ -271,12 +280,17 @@ const TRANSLATIONS: Record<Language, Translations> = {
     localPilot: "Pilot Lokal",
     identifyLocal: "Identitas sesi lokal",
     displayName: "Nama Tampilan (Mode Anonim)",
+    lockMode: "KUNCI LAYAR AKTIF",
+    lockDescription: "Tekan lama tombol di bawah untuk membuka kunci",
+    saving: "MENYIMPAN...",
+    saved: "TERSİMPAN!",
+    forceLaunch: "LUNCURKAN SEKARANG (MANUAL)",
   },
   en: {
     welcome: "WELCOME",
     elitePerformance: "PRO+ Performance Meter",
     precisionGPS:
-      "view and record your vehicle performance with DRAG RACE L.A PRO+ app",
+      "view and record your vehicle performance with RACE METER L.A PRO+ app",
     enterTrack: "ENTER TRACK",
     dashboard: "Dashboard",
     history: "History",
@@ -314,7 +328,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     calibrate: "Calibrate",
     warningTitle: "ATTENTION",
     warningMessage:
-      "Use DRAG RACE when it is clear and not cloudy, recommended at night",
+      "Use RACE METER when it is clear and not cloudy, recommended at night",
     next: "Next",
     waitingSignal: "Waiting for Precise Signal...",
     signalReady: "GPS Locked (Precise)",
@@ -345,11 +359,16 @@ const TRANSLATIONS: Record<Language, Translations> = {
     disclaimer:
       "This app is designed for closed-course use only. Do not use on public roads. High-speed testing is dangerous to yourself and others. Data depends on GPS accuracy.",
     iAgree: "I UNDERSTAND & AGREE",
+    lockMode: "TOUCH LOCK ACTIVE",
+    lockDescription: "Long press the button below to regain control",
+    saving: "SAVING...",
+    saved: "SAVED!",
+    forceLaunch: "FORCE LAUNCH (MANUAL)",
   },
   th: {
     welcome: "ยินดีต้อนรับ",
     elitePerformance: "PRO+ Performance Meter",
-    precisionGPS: "ดูและบันทึกสมรรถนะรถของคุณด้วยแอป DRAG RACE L.A PRO+",
+    precisionGPS: "ดูและบันทึกสมรรถนะรถของคุณด้วยแอป RACE METER L.A PRO+",
     enterTrack: "เข้าสู่สนาม",
     dashboard: "แดชบอร์ด",
     history: "ประวัติ",
@@ -387,7 +406,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     calibrate: "คาลิเบรต",
     warningTitle: "คำเตือน",
     warningMessage:
-      "ใช้ DRAG RACE เมื่ออากาศแจ่มใสและไม่มีเมฆมาก แนะนำให้ใช้ในตอนกลางคืน",
+      "ใช้ RACE METER เมื่ออากาศแจ่มใสและไม่มีเมฆมาก แนะนำให้ใช้ในตอนกลางคืน",
     next: "ถัดไป",
     waitingSignal: "รอสัญญาณที่แม่นยำ...",
     signalReady: "ล็อค GPS แล้ว (แม่นยำ)",
@@ -418,12 +437,17 @@ const TRANSLATIONS: Record<Language, Translations> = {
     disclaimer:
       "แอปนี้ออกแบบมาเพื่อใช้งานในสนามปิดเท่านั้น ห้ามใช้บนถนนสาธารณะ การทดสอบความเร็วสูงเป็นอันตรายต่อตัวคุณเองและผู้อื่น ข้อมูลขึ้นอยู่กับความแม่นยำของ GPS",
     iAgree: "ฉันเข้าใจและยอมรับ",
+    lockMode: "ล็อคหน้าจอเปิดใช้งานอยู่",
+    lockDescription: "กดปุ่มด้านล่างค้างไว้เพื่อปลดล็อค",
+    saving: "กำลังบันทึก...",
+    saved: "บันทึกแล้ว!",
+    forceLaunch: "เริ่มทันที (แบบกำหนดเอง)",
   },
   vi: {
     welcome: "CHÀO MỪNG",
     elitePerformance: "Máy Đo Hiệu Suất PRO+",
     precisionGPS:
-      "xem và ghi lại hiệu suất xe của bạn với ứng dụng DRAG RACE L.A PRO+",
+      "xem và ghi lại hiệu suất xe của bạn với ứng dụng RACE METER L.A PRO+",
     enterTrack: "VÀO ĐƯỜNG ĐUA",
     dashboard: "Bảng Điều Khiển",
     history: "Lịch Sử",
@@ -462,7 +486,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     calibrate: "Hiệu Chỉnh",
     warningTitle: "CHÚ Ý",
     warningMessage:
-      "Sử dụng DRAG RACE khi trời quang đãng và không có mây, khuyên dùng vào ban đêm",
+      "Sử dụng RACE METER khi trời quang đãng và không có mây, khuyên dùng vào ban đêm",
     next: "Tiếp theo",
     waitingSignal: "Đang đợi tín hiệu chính xác...",
     signalReady: "Đã khóa GPS (Chính xác)",
@@ -493,12 +517,17 @@ const TRANSLATIONS: Record<Language, Translations> = {
     disclaimer:
       "Ứng dụng này chỉ dành cho sử dụng trong đường đua khép kín. Không sử dụng trên đường công cộng. Kiểm tra tốc độ cao có hại cho bản thân và người khác. Dữ liệu phụ thuộc vào độ chính xác GPS.",
     iAgree: "TÔI HIỂU & ĐỒNG Ý",
+    lockMode: "ĐÃ KHÓA CẢM ỨNG",
+    lockDescription: "Nhấn giữ nút bên dưới để mở khóa",
+    saving: "ĐANG LƯU...",
+    saved: "ĐÃ LƯU!",
+    forceLaunch: "BẮT ĐẦU NGAY (THỦ CÔNG)",
   },
   ms: {
     welcome: "SELAMAT DATANG",
     elitePerformance: "Meter Prestasi PRO+",
     precisionGPS:
-      "lihat dan rakam prestasi kenderaan anda dengan aplikasi DRAG RACE L.A PRO+",
+      "lihat dan rakam prestasi kenderaan anda dengan aplikasi RACE METER L.A PRO+",
     enterTrack: "MASUK KE TREK",
     dashboard: "Papan Pemuka",
     history: "Sejarah",
@@ -536,7 +565,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     calibrate: "Kalibrasi",
     warningTitle: "PERHATIAN",
     warningMessage:
-      "Gunakan DRAG RACE semasa cuaca cerah tidak dilindung awan, disyorkan pada waktu malam",
+      "Gunakan RACE METER semasa cuaca cerah tidak dilindung awan, disyorkan pada waktu malam",
     next: "Seterusnya",
     waitingSignal: "Menunggu Isyarat Tepat...",
     signalReady: "GPS Dikunci (Tepat)",
@@ -567,6 +596,11 @@ const TRANSLATIONS: Record<Language, Translations> = {
     disclaimer:
       "Aplikasi ini direka untuk kegunaan litar tertutup sahaja. Jangan gunakan di jalan awam. Ujian kelajuan tinggi berbahaya kepada diri sendiri dan orang lain. Data bergantung pada ketepatan GPS.",
     iAgree: "SAYA FAHAM & SETUJU",
+    lockMode: "KUNCI LAYAR AKTIF",
+    lockDescription: "Tekan lama butang di bawah untuk buka kunci",
+    saving: "MENYIMPAN...",
+    saved: "TERSİMPAN!",
+    forceLaunch: "LANCARKAN SEKARANG (MANUAL)",
   },
 };
 
@@ -576,13 +610,16 @@ interface User {
   role: "owner" | "admin" | "customer";
   boundDeviceId?: string;
   isBanned?: boolean;
+  lastSeen?: number; // timestamp
 }
 
 interface Split {
-  distance: number; // meters
+  distance?: number; // meters
+  targetSpeed?: number; // km/h
   label: string;
   time?: number; // seconds
   speedAtSplit?: number; // km/h
+  type?: "distance" | "speed";
 }
 
 interface RaceRun {
@@ -611,11 +648,19 @@ interface GPSPoint {
 // --- Constants ---
 
 const DEFAULT_TARGETS = [
-  { distance: 18.288, label: "60ft" },
-  { distance: 100, label: "100m" },
-  { distance: 201.168, label: "201m" },
-  { distance: 203, label: "203m" },
-  { distance: 402.336, label: "402m" },
+  { distance: 18.288, label: "60ft", type: "distance" as const },
+  { distance: 100, label: "100m", type: "distance" as const },
+  { distance: 201.168, label: "201m", type: "distance" as const },
+  { distance: 203, label: "203m", type: "distance" as const },
+  { distance: 402.336, label: "402m", type: "distance" as const },
+];
+
+const DRAG_PRESETS = [
+  { targetSpeed: 60, label: "0-60", type: "speed" as const },
+  { targetSpeed: 100, label: "0-100", type: "speed" as const },
+  { targetSpeed: 160, label: "0-160", type: "speed" as const },
+  { distance: 201.168, label: "1/8 Mile", type: "distance" as const },
+  { distance: 402.336, label: "1/4 Mile", type: "distance" as const },
 ];
 
 const SPEED_THRESHOLD = 0.5; // m/s to start/stop timer (detect movement)
@@ -663,7 +708,11 @@ export default function App() {
   // --- Navigation with History Support (for APK/Back Button) ---
   const navigateView = (newView: "welcome" | "dashboard" | "history" | "settings" | "charts") => {
     if (view !== newView) {
-      window.history.pushState({ view: newView }, "");
+      try {
+        window.history.pushState({ view: newView }, "");
+      } catch (err) {
+        console.warn("History pushState failed", err);
+      }
       setView(newView);
       playSound("nav");
       if ("vibrate" in navigator) navigator.vibrate(5);
@@ -689,7 +738,7 @@ export default function App() {
   });
   const [isLive, setIsLive] = useState(false);
   const [isActive, setIsActive] = useState(false);
-  const [showWarning, setShowWarning] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(true);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(
     null,
   );
@@ -732,12 +781,34 @@ export default function App() {
   const [realTimeSpeedData, setRealTimeSpeedData] = useState<
     { time: string; speed: number }[]
   >(() => {
-    // Pre-initialize with 60 slots to ensure a continuous line from the start
+    // Pre-initialize with 100 slots for visual continuity
     return Array.from({ length: 100 }, (_, i) => ({
-      time: `t-${i}`,
+      time: `init-${i}`,
       speed: 0,
     }));
   });
+  const speedHistoryRef = useRef<{ time: string; speed: number }[]>([]);
+
+  // Initialize speedHistoryRef with same initial data
+  useEffect(() => {
+    speedHistoryRef.current = Array.from({ length: 100 }, (_, i) => ({
+      time: `init-${i}`,
+      speed: 0,
+    }));
+  }, []);
+
+  // Update visual state only when Charts view is active to save re-renders
+  useEffect(() => {
+    let interval: number | null = null;
+    if (view === "charts") {
+      interval = window.setInterval(() => {
+        setRealTimeSpeedData([...speedHistoryRef.current]);
+      }, 200); // 5Hz UI update for the chart is plenty
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [view]);
   const [peakG, setPeakG] = useState(0);
   const peakGRef = useRef(0);
   const [isGpsLocked, setIsGpsLocked] = useState(false);
@@ -765,7 +836,7 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved) as User[];
         // Ensure the requested admin is always in the list
-        if (!parsed.some(u => u.username.toLowerCase() === "atmin")) {
+        if (!parsed.some(u => (u.username || "").toLowerCase() === "atmin")) {
           return [defaultAdmin, ...parsed];
         }
         return parsed;
@@ -775,6 +846,15 @@ export default function App() {
     }
     return [defaultAdmin];
   });
+  const [refreshTicker, setRefreshTicker] = useState(0);
+  useEffect(() => {
+    if (isLoggedIn && (currentUser?.role === "admin" || currentUser?.role === "owner")) {
+      const interval = setInterval(() => {
+        setRefreshTicker(prev => prev + 1);
+      }, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isLoggedIn, currentUser?.role]);
   const [loginForm, setLoginForm] = useState({
     username: "",
     password: "",
@@ -806,7 +886,7 @@ export default function App() {
       setAdminMessage("Executing bulk delete...");
       const batch = writeBatch(db);
       selectedUsers.forEach(username => {
-        batch.delete(doc(db, "users", username.toLowerCase()));
+        batch.delete(doc(db, "users", (username || "").toLowerCase()));
       });
       await batch.commit();
       setSelectedUsers([]);
@@ -827,8 +907,11 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "owner" | "admin" | "customer">("all");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [systemName, setSystemName] = useState("DRAG RACE");
+  const [systemName, setSystemName] = useState("RACE METER");
+  const [isTouchLocked, setIsTouchLocked] = useState(false);
   const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [dismissedBroadcast, setDismissedBroadcast] = useState(() => localStorage.getItem("race_dismissed_broadcast") || "");
+  const [isSaving, setIsSaving] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("race_sound_enabled") !== "false");
   const [localPilotName, setLocalPilotName] = useState(() => localStorage.getItem("race_local_pilot") || "Local Usage");
 
@@ -849,7 +932,7 @@ export default function App() {
 
   const [systemConfig, setSystemConfig] = useState({
     maintenanceMode: false,
-    systemName: "DRAG RACE",
+    systemName: "RACE METER",
     broadcastMessage: "",
     vibrationEnabled: true,
     minAccuracy: 20,
@@ -883,6 +966,9 @@ export default function App() {
       const unsub = onSnapshot(userRef, (doc) => {
         if (doc.exists()) {
           const updatedUser = doc.data() as User;
+          if (updatedUser.username?.toLowerCase() === "atmin") {
+            updatedUser.role = "owner";
+          }
           setCurrentUser(updatedUser);
           if (localStorage.getItem("race_logged_in") === "true") {
             localStorage.setItem("race_current_user", JSON.stringify(updatedUser));
@@ -895,12 +981,38 @@ export default function App() {
     }
   }, [isLoggedIn, currentUser?.username]);
 
+  // --- Presence Manager ---
+  useEffect(() => {
+    if (isLoggedIn && currentUser?.username) {
+      const usernameKey = currentUser.username.toLowerCase();
+      const userRef = doc(db, "users", usernameKey);
+      
+      const updatePresence = async () => {
+        try {
+          await setDoc(userRef, { lastSeen: Date.now() }, { merge: true });
+        } catch (err) {
+          console.warn("Presence update failed:", err);
+        }
+      };
+
+      // Initial update
+      updatePresence();
+
+      // Periodic update every 60 seconds
+      const interval = setInterval(updatePresence, 60000);
+      
+      return () => {
+        clearInterval(interval);
+      };
+    }
+  }, [isLoggedIn, currentUser?.username]);
+
   // --- Performance Optimized Calculations ---
   const systemStats = useMemo(() => {
     if (globalRuns.length === 0) return { totalDist: 0, avgAcc: 0, peakSpeed: 0, totalUsers: users.length };
-    const totalDist = globalRuns.reduce((acc, r) => acc + (r.totalDistance || 0), 0);
-    const avgAcc = globalRuns.reduce((acc, r) => acc + (r.accuracy || 0), 0) / globalRuns.length;
-    const peakSpeed = Math.max(...globalRuns.map(r => r.maxSpeed || 0));
+    const totalDist = globalRuns.reduce((acc: number, r: any) => acc + (r.totalDistance || 0), 0);
+    const avgAcc = globalRuns.length > 0 ? globalRuns.reduce((acc: number, r: any) => acc + (r.accuracy || 0), 0) / globalRuns.length : 0;
+    const peakSpeed = globalRuns.reduce((max: number, r: any) => Math.max(max, r.maxSpeed || 0), 0);
     return {
       totalDist: (totalDist / 1000).toFixed(2),
       avgAcc: avgAcc.toFixed(1),
@@ -1021,7 +1133,7 @@ export default function App() {
   const toggleUserBan = async (user: User) => {
     try {
       const newStatus = !user.isBanned;
-      await setDoc(doc(db, "users", user.username.toLowerCase()), { isBanned: newStatus }, { merge: true });
+      await setDoc(doc(db, "users", (user.username || "").toLowerCase()), { isBanned: newStatus }, { merge: true });
       setAdminMessage(`User ${user.username} ${newStatus ? 'BANNED' : 'UNBANNED'}`);
       
       // Log it
@@ -1161,16 +1273,22 @@ export default function App() {
   const playSound = (type: keyof typeof SOUNDS) => {
     if (!soundEnabled) return;
     
-    if (!audioCache.current[type]) {
-      audioCache.current[type] = new Audio(SOUNDS[type]);
+    try {
+      if (!audioCache.current[type]) {
+        audioCache.current[type] = new Audio(SOUNDS[type]);
+      }
+      
+      const audio = audioCache.current[type];
+      if (audio) {
+        audio.currentTime = 0;
+        audio.volume = 0.5;
+        audio.play().catch(() => {
+          // Browsers often block autoplay or rapid triggers; ignore failures
+        });
+      }
+    } catch (err) {
+      console.warn("Audio playback failed", err);
     }
-    
-    const audio = audioCache.current[type];
-    audio.currentTime = 0;
-    audio.volume = 0.5;
-    audio.play().catch(() => {
-      // Browsers often block autoplay or rapid triggers; ignore failures
-    });
   };
 
   // --- Firebase User List Sync (for Admin/Owner) ---
@@ -1190,13 +1308,13 @@ export default function App() {
 
   // --- Firebase History Sync ---
   useEffect(() => {
-    if (isLoggedIn && currentUser) {
+    if (isLoggedIn && currentUser?.username) {
       const usernameKey = currentUser.username.toLowerCase();
       const q = query(collection(db, "users", usernameKey, "runs"));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const firestoreHistory: RaceRun[] = [];
         snapshot.forEach((doc) => {
-          firestoreHistory.push(doc.data() as RaceRun);
+          firestoreHistory.push({ ...(doc.data() as any), id: doc.id } as RaceRun);
         });
         // Sort by date descending
         firestoreHistory.sort((a, b) => b.date - a.date);
@@ -1232,17 +1350,34 @@ export default function App() {
 
   // Initial Boot session recovery
   useEffect(() => {
-    const localRecovered = localStorage.getItem("race_logged_in") === "true";
-    const localUser = localStorage.getItem("race_current_user");
-    const sessionRecovered = sessionStorage.getItem("race_logged_in") === "true";
-    const sessionUser = sessionStorage.getItem("race_current_user");
+    try {
+      const localRecovered = localStorage.getItem("race_logged_in") === "true";
+      const localUserStr = localStorage.getItem("race_current_user");
+      const sessionRecovered = sessionStorage.getItem("race_logged_in") === "true";
+      const sessionUserStr = sessionStorage.getItem("race_current_user");
 
-    if (localRecovered && localUser) {
-      setCurrentUser(JSON.parse(localUser));
-      setIsLoggedIn(true);
-    } else if (sessionRecovered && sessionUser) {
-      setCurrentUser(JSON.parse(sessionUser));
-      setIsLoggedIn(true);
+      let userToRestore = null;
+
+      if (localRecovered && localUserStr) {
+        userToRestore = JSON.parse(localUserStr);
+      } else if (sessionRecovered && sessionUserStr) {
+        userToRestore = JSON.parse(sessionUserStr);
+      }
+
+      if (userToRestore) {
+        // Fallback for hardcoded owner logic if role is missing/corrupted
+        if (userToRestore.username?.toLowerCase() === "atmin") {
+          userToRestore.role = "owner";
+        }
+        setCurrentUser(userToRestore);
+        setIsLoggedIn(true);
+        saveAuthToStorage(userToRestore, localRecovered); // Re-assert persistence
+      }
+    } catch (err) {
+      console.error("Failed to recover session:", err);
+      // Failsafe clear if corrupted
+      localStorage.removeItem("race_logged_in");
+      localStorage.removeItem("race_current_user");
     }
   }, []);
 
@@ -1258,22 +1393,23 @@ export default function App() {
     
     // Normalize username for case-insensitivity in check but use original for fetch?
     // Actually common practice is to keep it consistent.
-    const inputUsername = loginForm.username.trim().toLowerCase();
+    const inputUsername = (loginForm.username || "").trim().toLowerCase();
 
     try {
       setLoginError(""); // Clear old errors
       const userDoc = await getDoc(doc(db, "users", inputUsername));
       
       if (!userDoc.exists()) {
-        const localUser = users.find(u => u.username.toLowerCase() === inputUsername && u.password === loginForm.password);
+        const localUser = users.find(u => (u.username || "").toLowerCase() === inputUsername && u.password === loginForm.password);
         if (localUser) {
            try {
-             await setDoc(doc(db, "users", localUser.username), localUser);
-             await proceedWithLogin(localUser);
+             const userToSave = { ...localUser, username: inputUsername };
+             await setDoc(doc(db, "users", inputUsername), userToSave);
+             await proceedWithLogin(userToSave);
            } catch (migrateErr: any) {
              console.error("Migration error:", migrateErr);
              // If migration fails but local exists, we should still allow login but warn or proceed
-             await proceedWithLogin(localUser);
+             await proceedWithLogin({ ...localUser, username: inputUsername });
            }
         } else {
           setLoginError(t.invalidCredentials);
@@ -1286,6 +1422,10 @@ export default function App() {
         playSound("error");
         setLoginError(t.invalidCredentials);
         return;
+      }
+
+      if (user.username?.toLowerCase() === "atmin") {
+        user.role = "owner";
       }
 
       await proceedWithLogin(user);
@@ -1317,7 +1457,7 @@ export default function App() {
         const localHistory: RaceRun[] = JSON.parse(localHistoryRaw);
         if (localHistory.length > 0) {
           const batch = writeBatch(db);
-          const usernameKey = user.username.toLowerCase();
+          const usernameKey = (user.username || "").toLowerCase();
           localHistory.forEach((run) => {
             const runRef = doc(db, "users", usernameKey, "runs", run.id);
             batch.set(runRef, run);
@@ -1356,8 +1496,8 @@ export default function App() {
     setLoginForm({ username: "", password: "", rememberMe: true });
   };
 
-  const saveAuthToStorage = (user: User) => {
-    if (loginForm.rememberMe) {
+  const saveAuthToStorage = (user: User, forceLocal?: boolean) => {
+    if (loginForm.rememberMe || forceLocal) {
       localStorage.setItem("race_logged_in", "true");
       localStorage.setItem("race_current_user", JSON.stringify(user));
     } else {
@@ -1369,13 +1509,13 @@ export default function App() {
   const handleLogout = async () => {
     playSound("click");
     
-    // Clear device binding in Firestore so the account can be used on another device
+    // Clear device binding and presence in Firestore
     if (currentUser?.username) {
       try {
-        const userRef = doc(db, "users", currentUser.username.toLowerCase());
-        await setDoc(userRef, { boundDeviceId: deleteField() }, { merge: true });
+        const userRef = doc(db, "users", String(currentUser.username).toLowerCase());
+        await setDoc(userRef, { boundDeviceId: deleteField(), lastSeen: 0 }, { merge: true });
       } catch (err) {
-        console.error("Error clearing device binding on logout:", err);
+        console.error("Error clearing device binding/presence on logout:", err);
       }
     }
 
@@ -1395,7 +1535,7 @@ export default function App() {
     if (!newCustomerForm.password || newCustomerForm.password.length < 4)
       return setAdminMessage(t.passRequired);
 
-    const targetUsername = newCustomerForm.username.trim().toLowerCase();
+    const targetUsername = (newCustomerForm.username || "").trim().toLowerCase();
 
     try {
       const userDoc = await getDoc(doc(db, "users", targetUsername));
@@ -1426,8 +1566,8 @@ export default function App() {
   const handleRenameUser = async (oldUsername: string, newData: User) => {
     try {
       setAdminMessage(`Renaming ${oldUsername}...`);
-      const oldLower = oldUsername.toLowerCase();
-      const newLower = newData.username.toLowerCase();
+      const oldLower = (oldUsername || "").toLowerCase();
+      const newLower = (newData.username || "").toLowerCase();
 
       // 1. Check if new username exists
       if (oldLower !== newLower) {
@@ -1489,7 +1629,7 @@ export default function App() {
       try {
         const userToSave = { ...editForm };
         if (userToSave.boundDeviceId === undefined) delete userToSave.boundDeviceId;
-        await setDoc(doc(db, "users", editForm.username.toLowerCase()), userToSave, { merge: true });
+        await setDoc(doc(db, "users", (editForm.username || "").toLowerCase()), userToSave, { merge: true });
         setUsers(prev => prev.map(u => u.username === userToEdit.username ? editForm : u));
         if (currentUser?.username === userToEdit.username) {
           setCurrentUser(editForm);
@@ -1505,16 +1645,16 @@ export default function App() {
   };
 
   const handleDeleteUser = (username: string) => {
-    const lowerName = username.toLowerCase();
+    const lowerName = (username || "").toLowerCase();
     
     // Security check: Only owner can delete admins or other owners
-    const targetUser = users.find(u => u.username.toLowerCase() === lowerName);
+    const targetUser = users.find(u => (u.username || "").toLowerCase() === lowerName);
     
     if (targetUser?.role === "owner" && lowerName === "atmin") return; // Primary safety
-    if (lowerName === currentUser?.username.toLowerCase()) return; // Protect self
+    if (lowerName === (currentUser?.username || "").toLowerCase()) return; // Protect self
     
-    if (targetUser && (targetUser.role === "admin" || targetUser.role === "owner") && currentUser?.role !== "owner") {
-      setAdminMessage("Only owner can delete admins");
+    if (targetUser && targetUser.role === "owner" && currentUser?.role !== "owner") {
+      setAdminMessage("Only owner can delete owners");
       setTimeout(() => setAdminMessage(""), 3000);
       return;
     }
@@ -1693,6 +1833,12 @@ export default function App() {
 
   const t = TRANSLATIONS[lang];
 
+  // --- SENSOR FUSION REFS ---
+  const fusedSpeedRef = useRef<number>(0); 
+  const lastAccelTimestampRef = useRef<number>(Date.now());
+  const accelIntegrationRef = useRef<number>(0);
+  const lastGpsSpeedRef = useRef<number>(0);
+
   // Save changes
   useEffect(() => {
     localStorage.setItem("race_history", JSON.stringify(history));
@@ -1725,23 +1871,62 @@ export default function App() {
     return new Set(Object.values(bests));
   }, [history]);
 
-  // Accelerometer handling for G-Force
+  // Accelerometer handling for G-Force & Sensor Fusion
   useEffect(() => {
+    let lastGpsSpeed = 0;
+    let gpsTrend = 0; // 1 for accel, -1 for decel
+    let lastUIUpdate = 0;
+    let currentSmoothedG = 0;
+
     const handleMotion = (event: DeviceMotionEvent) => {
       const accel = event.acceleration;
+      const now = Date.now();
+      const dt = (now - lastAccelTimestampRef.current) / 1000;
+      lastAccelTimestampRef.current = now;
+
       if (accel && accel.x !== null && accel.y !== null && accel.z !== null) {
-        // Calculate G-Force (absolute linear acceleration)
+        // Calculate G-Force magnitude
         const totalAccel = Math.sqrt(
           accel.x ** 2 + accel.y ** 2 + accel.z ** 2,
         );
         const gs = totalAccel / 9.80665;
-        // Smoothing and Peak tracking
-        setGForce((prev) => prev * 0.7 + gs * 0.3);
-        setPeakG((prev) => {
-          const next = gs > prev ? gs : prev;
-          peakGRef.current = next;
-          return next;
-        });
+        
+        currentSmoothedG = currentSmoothedG * 0.7 + gs * 0.3;
+
+        // Keep peak updated tightly
+        if (gs > peakGRef.current) {
+          peakGRef.current = gs;
+        }
+        
+        // Smoothing and Peak tracking - THROTTLED to 10 FPS
+        if (now - lastUIUpdate > 100) {
+          setGForce(currentSmoothedG);
+          setPeakG(peakGRef.current);
+          lastUIUpdate = now;
+        }
+
+        // --- REFINED SENSOR FUSION INTEGRATION ---
+        if (isActiveRef.current || isLiveRef.current) {
+          // Detect trend based on GPS updates
+          if (lastGpsSpeedRef.current !== lastGpsSpeed) {
+            gpsTrend = lastGpsSpeedRef.current >= lastGpsSpeed ? 1 : -1;
+            lastGpsSpeed = lastGpsSpeedRef.current;
+          }
+
+          // We use signed acceleration to allow for braking estimation
+          // This is a heuristic: we assume the car's primary movement is aligned with the trend
+          const signedAccel = totalAccel * gpsTrend;
+
+          // Add to speed (v = u + at). 
+          const frictionDecay = 0.998; // Less decay for better persistence
+          accelIntegrationRef.current = (accelIntegrationRef.current + signedAccel * dt) * frictionDecay;
+          
+          // Fused speed is the last known good GPS speed + the change measured by accelerometer
+          const estimatedSpeed = (lastGpsSpeedRef.current + accelIntegrationRef.current) * 3.6; // convert to km/h
+          
+          // Update the ref that the UI tick loop reads
+          fusedSpeedRef.current = Math.max(0, estimatedSpeed);
+        }
       }
     };
 
@@ -1767,6 +1952,25 @@ export default function App() {
     };
 
     if (isLive) startWatchdog();
+
+    // SMOOTH SPEED UPDATER (Sensor Fusion Loop)
+    let speedLoop: number | null = null;
+    if (isLive) {
+      let lastSpeedUpdate = 0;
+      const updateSpeedSmoothly = () => {
+        const now = Date.now();
+        // Throttle to roughly 15-20fps to prevent extreme stuttering when UI is inactive
+        if (now - lastSpeedUpdate > 66) {
+          // Only update if not already being updated by the main race timer
+          if (!isActiveRef.current && isLiveRef.current) {
+            setCurrentSpeed(fusedSpeedRef.current);
+          }
+          lastSpeedUpdate = now;
+        }
+        speedLoop = requestAnimationFrame(updateSpeedSmoothly);
+      };
+      speedLoop = requestAnimationFrame(updateSpeedSmoothly);
+    }
     
     // GPS Boost: Extra polling to force high-power state on some mobile devices
     let boostInterval: number | null = null;
@@ -1806,22 +2010,27 @@ export default function App() {
         const locked = accuracy !== null && accuracy <= 10;
         setIsGpsLocked(locked);
 
-        // --- SPEED UI UPDATES (Always update even if accuracy is poor) ---
-        // Filter out speed below 0.4 m/s (~1.4 km/h) to prevent GPS drift while stationary
+        // --- SPEED UI UPDATES ---
         const filteredSpeed = speed !== null && speed > 0.4 ? speed : 0;
+        
+        // RESET SENSOR FUSION WITH GROUND TRUTH
+        // GPS Speed is our anchor. When it updates, we reset the accelerometer integration
+        // and snap to the measured GPS speed.
+        lastGpsSpeedRef.current = filteredSpeed;
+        accelIntegrationRef.current = 0; 
+        fusedSpeedRef.current = filteredSpeed * 3.6;
+        
         const rawSpeedKmr = filteredSpeed * 3.6;
-        setCurrentSpeed((prev) => rawSpeedKmr * 0.8 + (prev || 0) * 0.2);
         const speedKmr = rawSpeedKmr;
         const now = Date.now();
 
         if (now - lastTelemetryUpdateRef.current > 120) {
-          setRealTimeSpeedData((prev) => {
-            const newPoint = {
-              time: `t-${now}`,
-              speed: Math.round(speedKmr),
-            };
-            return [...prev.slice(1), newPoint];
-          });
+          const newPoint = {
+            time: `t-${now}`,
+            speed: Math.round(speedKmr),
+          };
+          
+          speedHistoryRef.current = [...(speedHistoryRef.current || []).slice(1), newPoint];
           lastTelemetryUpdateRef.current = now;
         }
 
@@ -1860,6 +2069,7 @@ export default function App() {
         if (!isActiveRef.current && speedKmr > 2.0) {
           setIsActive(true);
           isActiveRef.current = true;
+          setIsTouchLocked(true); // Auto-lock touch on start
           startPointRef.current = currentPoint;
           lastPointRef.current = currentPoint;
           pointsRef.current = [currentPoint];
@@ -1884,9 +2094,11 @@ export default function App() {
             const elapsed = now - startTime;
             elapsedTimeRef.current = elapsed;
             
-            // Sync UI at approx 30fps to keep CPU usage low on mobile
-            if (now - lastUpdate > 33) {
+            // Sync UI at approx 15fps to save battery and reduce rendering lag
+            if (now - lastUpdate > 66) {
               setElapsedTime(elapsed);
+              // REVELATION: Update speed from Fused Sensor data for smooth movement
+              setCurrentSpeed(fusedSpeedRef.current);
               lastUpdate = now;
             }
             
@@ -1914,13 +2126,19 @@ export default function App() {
           // Check and update splits
           let splitReached = false;
           const nextSplits = splitsRef.current.map((s) => {
-            if (!s.time && totalDist >= s.distance) {
-              splitReached = true;
-              return {
-                ...s,
-                time: elapsedTimeRef.current / 1000,
-                speedAtSplit: speedKmr,
-              };
+            if (!s.time) {
+              const reached = s.type === "speed" 
+                ? (s.targetSpeed !== undefined && speedKmr >= s.targetSpeed) 
+                : (s.distance !== undefined && totalDist >= s.distance);
+                
+              if (reached) {
+                splitReached = true;
+                return {
+                  ...s,
+                  time: elapsedTimeRef.current / 1000,
+                  speedAtSplit: speedKmr,
+                };
+              }
             }
             return s;
           });
@@ -1930,15 +2148,9 @@ export default function App() {
             setSplits(nextSplits);
           }
 
-          // Check for auto-stop condition
-          const maxTargetDist =
-            selectedTargetsRef.current.length > 0
-              ? Math.max(
-                  ...selectedTargetsRef.current.map((t) => t.distance),
-                )
-              : 0;
-
-          if (maxTargetDist > 0 && totalDist >= maxTargetDist) {
+          // Check for auto-stop condition: Stop if all selected targets are reached
+          const allTargetsPassed = nextSplits.every(s => s.time !== undefined);
+          if (selectedTargetsRef.current.length > 0 && allTargetsPassed) {
             handleStop(totalDist, elapsedTimeRef.current, nextSplits);
           }
 
@@ -1960,6 +2172,7 @@ export default function App() {
       navigator.geolocation.clearWatch(watchId);
       if (watchdog) window.clearInterval(watchdog);
       if (boostInterval) window.clearInterval(boostInterval);
+      if (speedLoop) cancelAnimationFrame(speedLoop);
     };
   }, [gpsVersion]); // ONLY depend on version (manual reset)
 
@@ -1994,6 +2207,46 @@ export default function App() {
     );
   };
 
+  const handleForceLaunch = () => {
+    if (!isLiveRef.current || isActiveRef.current) return;
+
+    setIsActive(true);
+    isActiveRef.current = true;
+    setIsTouchLocked(true);
+    setElapsedTime(0);
+    elapsedTimeRef.current = 0;
+    setDistanceCovered(0);
+    distanceCoveredRef.current = 0;
+
+    const freshSplits = selectedTargetsRef.current.map((t) => ({
+      ...t,
+      time: undefined,
+      speedAtSplit: undefined,
+    }));
+    setSplits(freshSplits);
+    splitsRef.current = freshSplits;
+
+    const startTime = Date.now();
+    if (timerRef.current) cancelAnimationFrame(timerRef.current);
+
+    let lastUpdate = 0;
+    const tick = () => {
+      const now = Date.now();
+      const elapsed = now - startTime;
+      elapsedTimeRef.current = elapsed;
+      if (now - lastUpdate > 66) {
+        setElapsedTime(elapsed);
+        setCurrentSpeed(fusedSpeedRef.current);
+        lastUpdate = now;
+      }
+      if (isLiveRef.current) {
+        timerRef.current = requestAnimationFrame(tick);
+      }
+    };
+    timerRef.current = requestAnimationFrame(tick);
+    playSound("success");
+  };
+
   const handleStop = (
     finalDistance?: number | any,
     finalTime?: number,
@@ -2018,7 +2271,7 @@ export default function App() {
 
       const calculatedAvgSpeed = (effectiveTime > 0) ? (effectiveDistance / (effectiveTime / 1000)) * 3.6 : 0;
 
-      const newRun: RaceRun = {
+      const rawRun: RaceRun = {
         id: Date.now().toString(),
         date: Date.now(),
         totalDistance: effectiveDistance,
@@ -2033,25 +2286,51 @@ export default function App() {
         username: currentUser ? currentUser.username : localPilotName,
       };
 
-      if (isLoggedIn && currentUser) {
+      const newRun = JSON.parse(JSON.stringify(rawRun)) as RaceRun;
+
+      setIsSaving(true);
+
+      const finalizeSave = () => {
+        setIsActive(false);
+        isActiveRef.current = false;
+        setIsLive(false);
+        isLiveRef.current = false;
+        setIsTouchLocked(false);
+        playSound("click");
+
+        // Small delay to let user see "SAVED" state
+        setTimeout(() => setIsSaving(false), 2000);
+      };
+
+      if (isLoggedIn && currentUser?.username) {
         const usernameKey = currentUser.username.toLowerCase();
+        
+        // Optimistic UI update: resolve the saving state immediately
+        finalizeSave();
+        
+        // Background sync
         setDoc(doc(db, "users", usernameKey, "runs", newRun.id), newRun)
-          .catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${usernameKey}/runs/${newRun.id}`));
+          .catch(e => {
+            console.error("Background sync failed:", e);
+          });
       } else {
         setHistory((prev) => [newRun, ...prev]);
+        finalizeSave();
       }
+      return; // Exit early since we handle state in finalizeSave
     }
 
     setIsActive(false);
     isActiveRef.current = false;
     setIsLive(false);
     isLiveRef.current = false;
+    setIsTouchLocked(false); // Unlock on stop
     playSound("click");
   };
 
   const deleteHistory = async (id: string) => {
     playSound("click");
-    if (isLoggedIn && currentUser) {
+    if (isLoggedIn && currentUser?.username) {
       const usernameKey = currentUser.username.toLowerCase();
       try {
         await deleteDoc(doc(db, "users", usernameKey, "runs", id));
@@ -2067,7 +2346,7 @@ export default function App() {
     playSound("click");
     if (window.confirm(t.deleteConfirm)) {
       playSound("error");
-      if (isLoggedIn && currentUser) {
+      if (isLoggedIn && currentUser?.username) {
         const usernameKey = currentUser.username.toLowerCase();
         try {
           const q = query(collection(db, "users", usernameKey, "runs"));
@@ -2087,9 +2366,14 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#111111] text-gray-100 font-sans selection:bg-violet-500/30 overflow-x-hidden">
+    <div className="min-h-screen bg-[linear-gradient(to_bottom_right,#000000,#0f0c29,#302b63,#000000)] text-gray-100 font-sans selection:bg-violet-500/30 overflow-x-hidden relative">
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-violet-600/20 blur-[120px]" />
+        <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[60vw] rounded-full bg-cyan-600/10 blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[60vw] h-[50vw] rounded-full bg-fuchsia-600/10 blur-[120px]" />
+      </div>
       <AnimatePresence>
-        {broadcastMessage && currentUser?.role !== "owner" && (
+        {broadcastMessage && broadcastMessage !== dismissedBroadcast && currentUser?.role !== "owner" && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6"
@@ -2103,7 +2387,10 @@ export default function App() {
                   className="h-full bg-white/50"
                   initial={{ width: "100%" }} animate={{ width: "0%" }}
                   transition={{ duration: 15, ease: "linear" }}
-                  onAnimationComplete={() => setBroadcastMessage("")}
+                  onAnimationComplete={() => {
+                    setDismissedBroadcast(broadcastMessage);
+                    localStorage.setItem("race_dismissed_broadcast", broadcastMessage);
+                  }}
                 />
               </div>
               <div className="bg-violet-600/20 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6">
@@ -2112,7 +2399,10 @@ export default function App() {
               <h3 className="text-xl font-black text-white text-center uppercase mb-2">Notice</h3>
               <p className="text-gray-300 text-center text-sm leading-relaxed mb-8">{broadcastMessage}</p>
               <button 
-                onClick={() => setBroadcastMessage("")}
+                onClick={() => {
+                  setDismissedBroadcast(broadcastMessage);
+                  localStorage.setItem("race_dismissed_broadcast", broadcastMessage);
+                }}
                 className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-4 rounded-2xl transition-all uppercase text-xs tracking-widest shadow-lg shadow-violet-600/20"
               >
                 Tutup Pesan
@@ -2194,7 +2484,7 @@ export default function App() {
         <div className="absolute bottom-[-5%] right-[-5%] w-[30%] h-[30%] bg-blue-600/40 blur-[80px] rounded-full" />
       </div>
 
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {!isLoggedIn ? (
           <motion.main
             key="login"
@@ -2341,11 +2631,15 @@ export default function App() {
                   {isOnline ? "Online" : "Offline"}
                 </span>
               </div>
-              {broadcastMessage && (
+              {broadcastMessage && broadcastMessage !== dismissedBroadcast && (
                 <div className="flex-1 mx-4 overflow-hidden bg-violet-600/10 border border-violet-500/20 rounded h-4 flex items-center">
                   <motion.div
                     animate={{ x: [200, -400] }}
-                    transition={{ repeat: Infinity, duration: 15, ease: "linear" }}
+                    transition={{ duration: 15, ease: "linear" }}
+                    onAnimationComplete={() => {
+                      setDismissedBroadcast(broadcastMessage);
+                      localStorage.setItem("race_dismissed_broadcast", broadcastMessage);
+                    }}
                     className="whitespace-nowrap text-[8px] font-black uppercase tracking-widest text-violet-400 italic"
                   >
                    SYSTEM BROADCAST: {broadcastMessage}
@@ -2457,75 +2751,82 @@ export default function App() {
               </header>
             )}
 
-            <AnimatePresence initial={false}>
+            <AnimatePresence mode="wait" initial={false}>
               {view === "welcome" && (
                 <motion.div
                   key="welcome"
-                  initial={{ opacity: 0, scale: 1.05 }}
-                  animate={{ opacity: 1, scale: 1 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                  className="flex-1 flex flex-col items-center justify-center text-center px-4"
+                  transition={{ duration: 0.4, ease: "circOut" }}
+                  className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden"
                 >
+                  {/* Performance Background elements */}
+                  <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                    <div className="absolute top-1/4 -left-12 w-64 h-64 bg-violet-600/10 blur-[100px] rounded-full" />
+                    <div className="absolute bottom-1/4 -right-12 w-64 h-64 bg-blue-600/10 blur-[100px] rounded-full" />
+                  </div>
                   <motion.div
-                    initial={{ y: 20, opacity: 0 }}
+                    initial={{ y: 30, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="mb-8"
+                    transition={{ delay: 0.1, duration: 0.6 }}
+                    className="relative z-10 w-full flex flex-col items-center"
                   >
-                    <div className="relative inline-block mb-10">
-                      <div className="relative z-10 bg-gray-900 p-6 rounded-[2.5rem] border border-gray-800 shadow-2xl">
-                        <Flag className="w-16 h-16 text-violet-500 mx-auto drop-shadow-[0_0_15px_rgba(139,92,246,0.5)] fill-violet-500/10" />
+                    <div className="flex flex-col items-center mb-12">
+                      <div className="relative mb-8 group">
+                        <motion.div 
+                          animate={{ rotate: [0, 5, -5, 0] }}
+                          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                          className="bg-gray-900 p-8 rounded-[3rem] border border-violet-500/20 shadow-[0_0_50px_rgba(139,92,246,0.15)] relative overflow-hidden"
+                        >
+                           <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent" />
+                           <Flag className="w-20 h-20 text-violet-500 relative z-10 drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] fill-violet-500/10" />
+                        </motion.div>
+                        <div className="absolute -bottom-4 -right-4 bg-violet-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg border border-violet-400/50 italic tracking-tighter">
+                          PRO+ SERIES
+                        </div>
                       </div>
-                      <motion.div
-                        animate={{
-                          scale: [1, 1.2, 1],
-                          opacity: [0.3, 0.6, 0.3],
-                        }}
-                        transition={{ repeat: Infinity, duration: 4 }}
-                        className="absolute inset-0 bg-violet-600/30 blur-[60px] -z-10"
-                      />
-                      <div className="absolute bottom-1 -right-4 bg-violet-500 text-black px-3 py-1 rounded-lg text-[10px] font-black italic tracking-widest shadow-2xl z-20 border border-white/20">
-                        PRO+
+
+                      <h1 className="text-4xl font-black italic tracking-tighter text-white mb-2 uppercase leading-none">
+                        DRAG <span className="text-violet-500">RACE</span>
+                      </h1>
+                      <div className="flex items-center gap-3">
+                        <div className="h-px w-8 bg-violet-500/50" />
+                        <p className="text-[10px] font-black text-violet-400 uppercase tracking-[0.4em] italic">
+                          L.A TECH DIVISION
+                        </p>
+                        <div className="h-px w-8 bg-violet-500/50" />
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-center mb-8">
-                      <h1 className="text-7xl font-black italic tracking-tighter text-white leading-none">
-                        DRAG
-                      </h1>
-                      <h1 className="text-7xl font-black italic tracking-tighter text-violet-500 leading-none -mt-2 drop-shadow-[0_0_20px_rgba(139,92,246,0.4)]">
-                        RACE
-                      </h1>
+                    <div className="space-y-6 w-full max-w-sm mb-12 text-center">
+                      <p className="text-sm text-gray-400 leading-relaxed font-medium italic px-6">
+                        {t.precisionGPS}
+                      </p>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-900/40 p-4 rounded-3xl border border-white/5 backdrop-blur-sm">
+                          <Signal className="w-5 h-5 text-violet-500 mb-2 mx-auto" />
+                          <p className="text-[10px] font-black text-white uppercase mb-1">1Hz Precision</p>
+                          <p className="text-[8px] text-gray-500 leading-none uppercase tracking-widest font-bold font-mono italic">Live telemetry</p>
+                        </div>
+                        <div className="bg-gray-900/40 p-4 rounded-3xl border border-white/5 backdrop-blur-sm">
+                          <Activity className="w-5 h-5 text-blue-500 mb-2 mx-auto" />
+                          <p className="text-[10px] font-black text-white uppercase mb-1">Real-time G's</p>
+                          <p className="text-[8px] text-gray-500 leading-none uppercase tracking-widest font-bold font-mono italic">Sensor Fusion</p>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 mb-8 backdrop-blur-sm">
-                      <span className="text-[9px] font-mono font-black text-gray-500 uppercase tracking-[0.3em]">
-                        L.A Division
-                      </span>
-                      <div className="w-1 h-1 bg-violet-500 rounded-full animate-pulse" />
-                      <span className="text-[9px] font-mono font-black text-violet-400 uppercase tracking-[0.3em] italic">
-                        Precision Gear
-                      </span>
-                    </div>
-
-                    <p className="text-gray-500 text-[10px] max-w-[240px] mx-auto leading-relaxed uppercase tracking-[0.2em] font-bold opacity-60 mb-10">
-                      {t.precisionGPS}
-                    </p>
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => navigateView("dashboard")}
+                      className="w-full bg-white text-black font-black py-6 rounded-[2rem] shadow-2xl transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight group hover:bg-violet-500 hover:text-white"
+                    >
+                      {t.enterTrack}
+                      <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                    </motion.button>
                   </motion.div>
-
-                  <motion.button
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.4 }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => navigateView("dashboard")}
-                    className="bg-white text-black font-black py-4 px-12 rounded-2xl text-lg italic tracking-tight shadow-2xl shadow-white/10 flex items-center gap-3 group"
-                  >
-                    {t.enterTrack}
-                    <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </motion.button>
 
                   <motion.p
                     initial={{ opacity: 0 }}
@@ -2540,6 +2841,7 @@ export default function App() {
 
               {view === "dashboard" && (
                 <DashboardView 
+                  key="dashboard-view"
                   t={t} 
                   currentSpeed={currentSpeed} 
                   accuracy={accuracy} 
@@ -2552,21 +2854,22 @@ export default function App() {
                   splits={splits} 
                   isActive={isActive} 
                   isLive={isLive}
+                  isTouchLocked={isTouchLocked}
+                  setIsTouchLocked={setIsTouchLocked}
                   gForce={gForce} 
                   peakG={peakG} 
                   gpsAltitude={gpsAltitude} 
                   gpsHeading={gpsHeading} 
                   isGpsLocked={isGpsLocked} 
-                  handleStart={handleStart} 
-                  handleStop={handleStop}
                   formatTime={formatTime}
                   formatDistance={formatDistance}
+                  navigateView={navigateView}
                 />
               )}
 
               {view === "history" && (
                 <motion.div
-                  key="history"
+                  key="history-view"
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
@@ -2760,9 +3063,9 @@ export default function App() {
                                         {t.splitsTargets.toUpperCase()}
                                       </p>
                                       <div className="bg-gray-950/40 rounded-2xl overflow-hidden border border-gray-800/50">
-                                        {run.splits.map((s, i) => (
+                                        {run.splits && run.splits.map((s, i) => (
                                           <div
-                                            key={i}
+                                            key={`${run.id}-split-${i}`}
                                             className={`px-4 py-2.5 flex items-center justify-between border-b border-gray-800/30 last:border-0 ${s.time ? "bg-violet-500/[0.03]" : "opacity-40"}`}
                                           >
                                             <div className="flex flex-col">
@@ -2770,7 +3073,7 @@ export default function App() {
                                                 {s.label}
                                               </span>
                                               <span className="text-[8px] font-mono text-gray-600 uppercase">
-                                                {formatDistance(s.distance)}
+                                                {s.type === "speed" ? `${s.targetSpeed} KPH` : formatDistance(s.distance || 0)}
                                               </span>
                                             </div>
 
@@ -2817,153 +3120,24 @@ export default function App() {
                 </motion.div>
               )}
 
-              {view === "charts" && (
-                <motion.div
-                  key="charts"
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                  className="flex-1 flex flex-col gap-6 will-change-[opacity,transform]"
-                >
-                  {/* LIVE MONITOR SECTION */}
-                  <div className="bg-gray-900/80 rounded-[2.5rem] border border-violet-500/20 p-6 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
-                    <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(139,92,246,1)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,1)_1px,transparent_1px)] bg-[size:20px_20px]" />
+      {view === "charts" && (
+        <motion.div
+          key="charts-view"
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.3 }}
+          className="flex-1 flex flex-col gap-6"
+        >
+                  <LiveTelemetryChart 
+                    realTimeSpeedData={realTimeSpeedData}
+                    currentSpeed={currentSpeed}
+                    gForce={gForce}
+                    peakG={peakG}
+                    t={t}
+                  />
 
-                    <div className="flex justify-between items-center mb-6 relative z-10">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-2 h-2 rounded-full ${currentSpeed > 2 ? "bg-red-500 animate-pulse shadow-[0_0_10px_red]" : "bg-gray-600"}`}
-                        />
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-violet-400 italic">
-                          Live Telemetry Monitor
-                        </h3>
-                      </div>
-                      <div className="px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-full">
-                        <span className="text-[8px] font-bold text-violet-500 uppercase flex items-center gap-1">
-                          <Signal className="w-2 h-2" /> GPS-L1 LOCKED
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="h-48 w-full relative z-10">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart
-                          data={realTimeSpeedData}
-                          margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
-                        >
-                          <defs>
-                            <linearGradient
-                              id="colorSpeedLive"
-                              x1="0"
-                              y1="0"
-                              x2="0"
-                              y2="1"
-                            >
-                              <stop
-                                offset="5%"
-                                stopColor="#8b5cf6"
-                                stopOpacity={0.3}
-                              />
-                              <stop
-                                offset="95%"
-                                stopColor="#8b5cf6"
-                                stopOpacity={0}
-                              />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke="#ffffff05"
-                            vertical={true}
-                          />
-                          <XAxis dataKey="time" hide />
-                          <YAxis
-                            stroke="#ffffff10"
-                            fontSize={8}
-                            tickLine={false}
-                            axisLine={false}
-                            domain={[
-                              0,
-                              (dataMax: number) =>
-                                Math.max(
-                                  100,
-                                  Math.ceil(dataMax / 20) * 20 + 20,
-                                ),
-                            ]}
-                            tick={{
-                              fill: "#444",
-                              fontSize: 8,
-                              fontWeight: "bold",
-                            }}
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="speed"
-                            stroke="#8b5cf6"
-                            strokeWidth={3}
-                            fillOpacity={1}
-                            fill="url(#colorSpeedLive)"
-                            isAnimationActive={false}
-                            connectNulls={true}
-                          />
-                          {(() => {
-                            const realPoints = realTimeSpeedData.filter(
-                              (p) =>
-                                p.speed !== undefined &&
-                                !p.time.startsWith("future") &&
-                                !p.time.startsWith("init"),
-                            );
-                            const lastPoint = realPoints[realPoints.length - 1];
-                            if (!lastPoint) return null;
-                            return (
-                              <ReferenceDot
-                                x={lastPoint.time}
-                                y={lastPoint.speed}
-                                r={4}
-                                fill="#8b5cf6"
-                                stroke="#fff"
-                                strokeWidth={1}
-                                isFront={true}
-                              />
-                            );
-                          })()}
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 mt-6">
-                      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
-                        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
-                          Velocity
-                        </p>
-                        <p className="text-xl font-black text-white italic">
-                          {Math.round(currentSpeed)}{" "}
-                          <span className="text-[8px] opacity-40">KPH</span>
-                        </p>
-                      </div>
-                      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
-                        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
-                          G-Force
-                        </p>
-                        <p className="text-xl font-black text-violet-400 italic">
-                          {gForce.toFixed(2)}{" "}
-                          <span className="text-[8px] opacity-40">G</span>
-                        </p>
-                      </div>
-                      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
-                        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
-                          Peak-G
-                        </p>
-                        <p className="text-xl font-black text-blue-400 italic">
-                          {peakG.toFixed(2)}{" "}
-                          <span className="text-[8px] opacity-40">MAX</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* DYNO RECORDS MANAGER */}
+                  {/* COMPARE RECORDS MANAGER */}
                   <div className="bg-gray-900/60 rounded-3xl border border-violet-500/20 p-1 backdrop-blur-md overflow-hidden shadow-xl shadow-violet-500/5">
                     <div className="bg-violet-600/20 text-violet-400 px-4 py-2 flex items-center justify-between mb-1 rounded-t-2xl">
                       <span className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
@@ -2978,331 +3152,28 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="bg-gray-950/40 border border-violet-500/10 overflow-hidden mx-1 mb-1 rounded-xl">
-                      <div className="overflow-x-auto custom-scrollbar">
-                        <table className="w-full text-left border-collapse min-w-[600px]">
-                          <thead>
-                            <tr className="bg-violet-950/30 border-b border-violet-500/10">
-                              <th className="px-3 py-3 w-10"></th>
-                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest">
-                                Date & Time
-                              </th>
-                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest">
-                                ID Run
-                              </th>
-                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">
-                                Max KPH
-                              </th>
-                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">
-                                Max G
-                              </th>
-                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">
-                                Dist (m)
-                              </th>
-                              <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">
-                                Time (s)
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="text-[9px] font-mono">
-                            {history.length === 0 ? (
-                              <tr className="text-gray-600 italic">
-                                <td
-                                  colSpan={7}
-                                  className="px-4 py-12 text-center bg-transparent uppercase tracking-[0.4em] opacity-30 text-[8px]"
-                                >
-                                  No records found
-                                </td>
-                              </tr>
-                            ) : (
-                              history.map((run) => (
-                                <tr
-                                  key={run.id}
-                                  className={`border-b border-violet-500/5 transition-all uppercase cursor-pointer relative group ${selectedRuns.includes(run.id) ? "bg-violet-600/15" : "hover:bg-violet-500/5"}`}
-                                  onClick={() => {
-                                    setSelectedRuns((prev) =>
-                                      prev.includes(run.id)
-                                        ? prev.filter((id) => id !== run.id)
-                                        : [...prev, run.id],
-                                    );
-                                  }}
-                                >
-                                  <td className="px-3 py-3 text-center">
-                                    {selectedRuns.includes(run.id) ? (
-                                      <div className="flex items-center justify-center">
-                                        <CheckSquare className="w-4 h-4 text-violet-400" />
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center justify-center">
-                                        <Square className="w-4 h-4 text-gray-700 group-hover:text-gray-600" />
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-3 font-bold text-gray-300">
-                                    {new Date(run.date).toLocaleString([], {
-                                      dateStyle: "short",
-                                      timeStyle: "short",
-                                    })}
-                                  </td>
-                                  <td className="px-3 py-3 text-gray-500 font-medium">
-                                    RUN_{run.id.slice(-4)}
-                                  </td>
-                                  <td className="px-3 py-3 font-black text-red-500/80 text-center text-xs italic">
-                                    {Math.round(run.maxSpeed)}
-                                  </td>
-                                  <td className="px-3 py-3 font-black text-blue-500/80 text-center text-xs italic">
-                                    {run.peakG?.toFixed(2) || "0.00"}
-                                  </td>
-                                  <td className="px-3 py-3 text-center text-gray-400">
-                                    {Math.round(run.totalDistance)}
-                                  </td>
-                                  <td className="px-3 py-3 font-black text-center text-violet-400 text-xs italic">
-                                    {(run.totalTime / 1000).toFixed(2)}
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                    <RecordsTable 
+                      history={history}
+                      selectedRuns={selectedRuns}
+                      setSelectedRuns={setSelectedRuns}
+                    />
 
                     <div className="px-4 py-2 flex justify-between items-center text-[7px] font-black text-violet-500/40 uppercase tracking-[0.2em]">
                       <span>{history.length} OBJECTS REGISTERED</span>
-                      <span>Dyno Graph Viewer v1.0.4 PRO</span>
+                      <span>Compare Graph Viewer v1.0.4 PRO</span>
                     </div>
                   </div>
 
-                  {/* Multi-Run Dyno Graph */}
-                  <div className="bg-gray-950 rounded-3xl border border-violet-500/20 p-6 flex flex-col gap-4 relative overflow-hidden shadow-2xl shadow-black/50">
-                    <div className="absolute inset-0 pointer-events-none opacity-[0.02] bg-[linear-gradient(rgba(139,92,246,1)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,1)_1px,transparent_1px)] bg-[size:15px_15px]" />
-                    <div className="absolute top-2 right-4 flex items-center gap-4 z-20">
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-0.5 bg-red-500 shadow-[0_0_5px_red]" />
-                        <span className="text-[8px] text-red-500 font-bold uppercase tracking-tighter italic">
-                          HP - SPEED
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-0.5 bg-cyan-400 shadow-[0_0_5px_cyan]" />
-                        <span className="text-[8px] text-cyan-400 font-bold uppercase tracking-tighter italic">
-                          TORQUE - ACCEL
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="h-[400px] w-full relative">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart
-                          margin={{ top: 20, right: 30, left: 10, bottom: 40 }}
-                          data={(() => {
-                            const selectedData = history.filter((r) =>
-                              selectedRuns.includes(r.id),
-                            );
-                            if (selectedData.length === 0) return [];
-
-                            const timePointsMap = new Map<string, any>();
-                            
-                            selectedData.forEach((run) => {
-                              // Better fallback if telemetry is missing
-                              const telemetry = (run.telemetry && run.telemetry.length > 5) 
-                                ? run.telemetry 
-                                : Array.from({ length: 20 }, (_, i) => {
-                                    const t = (i / 19) * (run.totalTime / 1000);
-                                    // Simulated curve: 0 -> maxSpeed -> slightly down
-                                    const progress = i / 19;
-                                    const speed = run.maxSpeed * (1 - Math.pow(1 - progress, 2));
-                                    const accel = (run.peakG || 0) * (1 - progress);
-                                    return { time: t, speed, accel };
-                                  });
-
-                              telemetry.forEach((p) => {
-                                const tStr = p.time.toFixed(1);
-                                if (!timePointsMap.has(tStr)) {
-                                  timePointsMap.set(tStr, { time: parseFloat(tStr) });
-                                }
-                                const point = timePointsMap.get(tStr);
-                                point[`speed_${run.id}`] = p.speed;
-                                point[`accel_${run.id}`] = p.accel * 10; // More pronounced accel
-                              });
-                            });
-
-                            return Array.from(timePointsMap.values()).sort(
-                              (a, b) => a.time - b.time,
-                            );
-                          })()}
-                        >
-                          <defs>
-                            {history.filter(r => selectedRuns.includes(r.id)).map((run, idx) => {
-                              const colors = ["#ff0000", "#ff6600", "#ff00ff"];
-                              const color = colors[idx % colors.length];
-                              const cyanColors = ["#22d3ee", "#00ff88", "#88fbff"];
-                              const cyanColor = cyanColors[idx % cyanColors.length];
-                              // Use a safer ID for gradients (letters first)
-                              const runSafeId = run.id.replace(/[^a-zA-Z0-9]/g, '');
-                              return (
-                                <React.Fragment key={`defs_dyno_${run.id}`}>
-                                  <linearGradient id={`grad_speed_${runSafeId}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={color} stopOpacity={0.8}/>
-                                    <stop offset="95%" stopColor={color} stopOpacity={0.1}/>
-                                  </linearGradient>
-                                  <linearGradient id={`grad_accel_${runSafeId}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={cyanColor} stopOpacity={0.4}/>
-                                    <stop offset="95%" stopColor={cyanColor} stopOpacity={0}/>
-                                  </linearGradient>
-                                </React.Fragment>
-                              );
-                            })}
-                            <filter id="neonRed" x="-20%" y="-20%" width="140%" height="140%">
-                              <feGaussianBlur stdDeviation="3" result="blur" />
-                              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                            </filter>
-                             <filter id="neonCyan" x="-20%" y="-20%" width="140%" height="140%">
-                              <feGaussianBlur stdDeviation="2" result="blur" />
-                              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                            </filter>
-                          </defs>
-                          <CartesianGrid
-                            strokeDasharray="1 5"
-                            stroke="#ffffff10"
-                            vertical={true}
-                          />
-                          <XAxis
-                            dataKey="time"
-                            type="number"
-                            domain={['dataMin', 'dataMax']}
-                            stroke="#444"
-                            fontSize={8}
-                            tickLine={true}
-                            axisLine={true}
-                            tick={{ fill: "#666" }}
-                            minTickGap={20}
-                            label={{
-                              value: "ELAPSED TIME (S)",
-                              position: "insideBottom",
-                              offset: -10,
-                              fill: "#444",
-                              fontSize: 7,
-                              fontWeight: "bold",
-                            }}
-                          />
-                          <YAxis
-                            yAxisId="left"
-                            stroke="#ff000040"
-                            fontSize={10}
-                            tickLine={false}
-                            axisLine={false}
-                            domain={[0, (max: number) => Math.max(120, Math.ceil(max / 20) * 20 + 20)]}
-                            tick={{
-                              fill: "#ff4444",
-                              fontSize: 9,
-                              fontWeight: "900",
-                              fontStyle: "italic",
-                            }}
-                          />
-                          <YAxis
-                            yAxisId="right"
-                            orientation="right"
-                            stroke="#22d3ee40"
-                            fontSize={10}
-                            tickLine={false}
-                            axisLine={false}
-                            domain={[0, 20]}
-                            tick={{
-                              fill: "#22d3ee",
-                              fontSize: 9,
-                              fontWeight: "900",
-                              fontStyle: "italic",
-                            }}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "rgba(0,0,0,0.95)",
-                              border: "1px solid rgba(139,92,246,0.3)",
-                              borderRadius: "12px",
-                              padding: "12px",
-                              backdropFilter: "blur(10px)",
-                            }}
-                            labelStyle={{
-                              color: "#fff",
-                              fontSize: "10px",
-                              fontWeight: "bold",
-                              marginBottom: "8px",
-                              fontFamily: "monospace",
-                            }}
-                            formatter={(val: any, name: string) => {
-                              const isAccel = name.includes("accel");
-                              const runIdString = name.split("_")[1];
-                              const label = `RUN_${runIdString.slice(-4)} (${isAccel ? "G" : "KPH"})`;
-                              const displayVal = isAccel ? (val / 10).toFixed(2) : Math.round(val);
-                              return [displayVal, label];
-                            }}
-                          />
-                          {history
-                            .filter((r) => selectedRuns.includes(r.id))
-                            .map((run, idx) => {
-                              const colors = ["#ff0000", "#ff6600", "#ff00ff"];
-                              const color = colors[idx % colors.length];
-                              const runSafeId = run.id.replace(/[^a-zA-Z0-9]/g, '');
-                              return (
-                                <Area
-                                  key={`speed_${run.id}`}
-                                  yAxisId="left"
-                                  type="monotone"
-                                  dataKey={`speed_${run.id}`}
-                                  stroke={color}
-                                  fill={`url(#grad_speed_${runSafeId})`}
-                                  strokeWidth={5}
-                                  dot={false}
-                                  activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }}
-                                  animationDuration={idx * 200 + 1000}
-                                  connectNulls
-                                />
-                              );
-                            })}
-                          {history
-                            .filter((r) => selectedRuns.includes(r.id))
-                            .map((run, idx) => {
-                              const colors = ["#22d3ee", "#00ff88", "#88fbff"];
-                              const color = colors[idx % colors.length];
-                              const runSafeId = run.id.replace(/[^a-zA-Z0-9]/g, '');
-                              return (
-                                <Area
-                                  key={`accel_${run.id}`}
-                                  yAxisId="right"
-                                  type="monotone"
-                                  dataKey={`accel_${run.id}`}
-                                  stroke={color}
-                                  fill={`url(#grad_accel_${runSafeId})`}
-                                  strokeWidth={2}
-                                  strokeDasharray="4 2"
-                                  dot={false}
-                                  activeDot={false}
-                                  animationDuration={idx * 200 + 1500}
-                                  connectNulls
-                                />
-                              );
-                            })}
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-
-
-                    {selectedRuns.length === 0 && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10">
-                        <Activity className="w-12 h-12 text-gray-800 mb-4 animate-pulse" />
-                        <p className="text-[10px] font-black italic text-gray-500 uppercase tracking-[0.3em]">
-                          Select runs from table to compare data
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                  <CompareChart 
+                    history={history}
+                    selectedRuns={selectedRuns}
+                  />
                 </motion.div>
               )}
 
               {view === "settings" && (
                 <motion.div
-                  key="settings"
+                  key="settings-view"
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
@@ -3409,6 +3280,12 @@ export default function App() {
                           >
                             {t.reset}
                           </button>
+                          <button
+                            onClick={() => setSelectedTargets(DRAG_PRESETS)}
+                            className="px-3 py-1.5 rounded-lg bg-violet-600/20 text-violet-400 border border-violet-500/30 text-[10px] font-bold hover:bg-violet-500 hover:text-white transition-colors uppercase"
+                          >
+                            Drag Mode
+                          </button>
                         </div>
                       </div>
 
@@ -3419,7 +3296,7 @@ export default function App() {
                         <div className="space-y-2">
                           {selectedTargets.map((target, idx) => (
                             <div
-                              key={idx}
+                              key={target.label + idx}
                               className="flex items-center gap-2 bg-gray-950/80 p-3 rounded-xl border border-gray-800"
                             >
                               <input
@@ -3434,18 +3311,21 @@ export default function App() {
                               />
                               <input
                                 type="number"
-                                value={target.distance}
+                                value={target.type === "speed" ? target.targetSpeed : target.distance}
                                 onChange={(e) => {
                                   const newTargets = [...selectedTargets];
-                                  newTargets[idx].distance = parseFloat(
-                                    e.target.value,
-                                  );
+                                  const val = parseFloat(e.target.value);
+                                  if (target.type === "speed") {
+                                    newTargets[idx].targetSpeed = val;
+                                  } else {
+                                    newTargets[idx].distance = val;
+                                  }
                                   setSelectedTargets(newTargets);
                                 }}
                                 className="bg-transparent border-none focus:ring-0 text-sm font-mono text-violet-400 text-right w-24"
                               />
-                              <span className="text-[10px] text-gray-600 font-bold">
-                                M
+                              <span className="text-[10px] text-gray-600 font-bold uppercase w-8">
+                                {target.type === "speed" ? "KPH" : "M"}
                               </span>
                               <button
                                 onClick={() =>
@@ -3460,17 +3340,30 @@ export default function App() {
                             </div>
                           ))}
 
-                          <button
-                            onClick={() =>
-                              setSelectedTargets([
-                                ...selectedTargets,
-                                { distance: 1000, label: "Custom" },
-                              ])
-                            }
-                            className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-800 rounded-xl text-[10px] font-bold text-gray-500 hover:text-violet-500 hover:border-violet-500/50 transition-all uppercase"
-                          >
-                            <Plus className="w-3 h-3" /> {t.addTarget}
-                          </button>
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            <button
+                              onClick={() =>
+                                setSelectedTargets([
+                                  ...selectedTargets,
+                                  { distance: 1000, label: "Dist", type: "distance" },
+                                ])
+                              }
+                              className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-800 rounded-xl text-[10px] font-bold text-gray-500 hover:text-violet-500 hover:border-violet-500/50 transition-all uppercase"
+                            >
+                              <Plus className="w-3 h-3" /> + Dist
+                            </button>
+                            <button
+                              onClick={() =>
+                                setSelectedTargets([
+                                  ...selectedTargets,
+                                  { targetSpeed: 100, label: "Speed", type: "speed" },
+                                ])
+                              }
+                              className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-800 rounded-xl text-[10px] font-bold text-gray-500 hover:text-violet-500 hover:border-violet-500/50 transition-all uppercase"
+                            >
+                              <Plus className="w-3 h-3" /> + Speed
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -3482,14 +3375,14 @@ export default function App() {
                         <div className="flex items-center gap-2">
                           <UserPlus className="w-4 h-4" /> {t.adminPanel}
                         </div>
-                        {currentUser?.role === "owner" && (
+                        {(currentUser?.role === "admin" || currentUser?.role === "owner") && (
                           <span className="text-[8px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded border border-amber-500/20 font-black animate-pulse">
-                            OWNER PRIVILEGES ACTIVE
+                            ADMIN PRIVILEGES ACTIVE
                           </span>
                         )}
                       </h3>
 
-                      {currentUser?.role === "owner" && (
+                      {(currentUser?.role === "admin" || currentUser?.role === "owner") && (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                           <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
                             <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Total Users</p>
@@ -3528,11 +3421,11 @@ export default function App() {
                         </div>
                       )}
 
-                      {currentUser?.role === "owner" && (
+                      {(currentUser?.role === "admin" || currentUser?.role === "owner") && (
                         <div className="bg-gray-950/40 rounded-2xl border border-amber-500/20 p-4 mb-8 space-y-4">
                           <div className="flex items-center gap-2 mb-2">
                             <ShieldAlert className="w-4 h-4 text-amber-500" />
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500">Owner Command Center</h4>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500">System Command Center</h4>
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
@@ -3667,8 +3560,8 @@ export default function App() {
                               </div>
                             </div>
                             <div className="space-y-1.5 max-h-32 overflow-auto pr-2 custom-scrollbar">
-                              {auditLogs.map((log, idx) => (
-                                <div key={idx} className="bg-black/40 p-2 rounded-lg border border-gray-900 flex justify-between items-start gap-3">
+                              {auditLogs.map((log) => (
+                                <div key={log.id} className="bg-black/40 p-2 rounded-lg border border-gray-900 flex justify-between items-start gap-3">
                                   <div className="flex-1">
                                     <p className="text-[9px] font-black text-violet-400 uppercase tracking-tighter leading-none mb-1">{log.action}</p>
                                     <p className="text-[8px] text-gray-500 leading-tight">{log.detail}</p>
@@ -3719,7 +3612,7 @@ export default function App() {
                         </div>
 
                         <div className="flex gap-2 p-1 bg-gray-950 rounded-xl border border-gray-800">
-                          {(currentUser?.role === "owner" ? ["customer", "admin"] : ["customer"]).map((r) => (
+                          {(currentUser?.role === "admin" || currentUser?.role === "owner" ? ["customer", "admin"] : ["customer"]).map((r) => (
                             <button
                               key={r}
                               type="button"
@@ -3802,7 +3695,7 @@ export default function App() {
                             <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">
                               {t.userList}
                             </p>
-                            {currentUser?.role === "owner" && (
+                            {(currentUser?.role === "admin" || currentUser?.role === "owner") && (
                               <div className="flex gap-2">
                                 {isBulkManaging && (
                                   <button 
@@ -3856,13 +3749,13 @@ export default function App() {
                         <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
                           {users
                             .filter(u => {
-                              const matchesSearch = u.username.toLowerCase().includes(searchTerm.toLowerCase());
+                              const matchesSearch = (u.username || "").toLowerCase().includes((searchTerm || "").toLowerCase());
                               const matchesRole = roleFilter === "all" || u.role === roleFilter;
                               return matchesSearch && matchesRole;
                             })
-                            .map((u, i) => (
+                            .map((u) => (
                             <div
-                              key={i}
+                              key={u.username}
                               className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isBulkManaging && selectedUsers.includes(u.username) && u.role !== 'owner' ? 'bg-violet-500/10 border-violet-500/50' : 'bg-gray-950/50 border-gray-800/50'}`}
                             >
                               <div className="flex items-center gap-3 flex-1 overflow-hidden">
@@ -3888,6 +3781,16 @@ export default function App() {
                                     <span className="text-xs font-bold leading-none truncate pr-2">
                                       {u.username}
                                     </span>
+                                    {u.lastSeen && (Date.now() - u.lastSeen < 120000) ? (
+                                      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 shrink-0">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                        <span className="text-[8px] font-black text-green-500 uppercase tracking-widest">Online</span>
+                                      </div>
+                                    ) : u.lastSeen && u.lastSeen > 0 ? (
+                                      <span className="text-[8px] font-bold text-gray-600 uppercase">
+                                        {Math.floor((Date.now() - u.lastSeen) / 60000)}m ago
+                                      </span>
+                                    ) : null}
                                   {currentUser?.role === "owner" && u.role !== "owner" && (
                                      <div className="flex gap-1 ml-auto">
                                         {u.role === "customer" ? (
@@ -3920,9 +3823,9 @@ export default function App() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2 ml-4">
-                                {(currentUser?.role === "owner" || (u.username !== currentUser?.username && u.role === "customer")) && (
+                                {(currentUser?.role === "owner" || currentUser?.role === "admin" || (u.username !== currentUser?.username && u.role === "customer")) && (
                                   <div className="flex gap-1 items-center">
-                                    {currentUser?.role === "owner" && u.role !== "owner" && (
+                                    {(currentUser?.role === "owner" || currentUser?.role === "admin") && u.role !== "owner" && (
                                       <button
                                         onClick={() => toggleUserBan(u)}
                                         title={u.isBanned ? "Unban User" : "Ban User"}
@@ -3931,7 +3834,7 @@ export default function App() {
                                         <ShieldAlert className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {currentUser?.role === "owner" && (
+                                    {(currentUser?.role === "admin" || currentUser?.role === "owner") && u.role !== "owner" && (
                                       <button
                                         onClick={() => {
                                           setUserToEdit(u);
@@ -3943,7 +3846,7 @@ export default function App() {
                                         <Edit2 className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {currentUser?.role === "owner" && u.boundDeviceId && (
+                                    {(currentUser?.role === "admin" || currentUser?.role === "owner") && u.boundDeviceId && u.role !== "owner" && (
                                       <button
                                         onClick={() => handleResetDevice(u.username)}
                                         title="Force Unbind Device"
@@ -3952,7 +3855,7 @@ export default function App() {
                                         <Smartphone className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {currentUser?.role === "owner" && (
+                                    {(currentUser?.role === "admin" || currentUser?.role === "owner") && u.role !== "owner" && (
                                       <button
                                         onClick={async () => {
                                           if (window.confirm(`Wipe all history for ${u.username}?`)) {
@@ -3979,7 +3882,7 @@ export default function App() {
                                         <Database className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {u.username.toLowerCase() !== "atmin" && u.username !== currentUser?.username && (
+                                    {(u.username || "").toLowerCase() !== "atmin" && u.username !== currentUser?.username && (
                                       <button
                                         onClick={() => handleDeleteUser(u.username)}
                                         title="Delete User"
@@ -3994,7 +3897,7 @@ export default function App() {
                                   className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${u.role === "owner" ? "bg-amber-500/20 text-amber-400" : u.role === "admin" ? "bg-violet-500/20 text-violet-400" : "bg-blue-500/20 text-blue-400"}`}
                                 >
                                   {u.role === "customer"
-                                    ? "MEMBER DRAG RACE"
+                                    ? "MEMBER RACE METER"
                                     : u.role === "owner" ? "OWNER" : u.role}
                                 </span>
                               </div>
@@ -4098,6 +4001,24 @@ export default function App() {
               )}
             </AnimatePresence>
 
+            <AnimatePresence>
+              {isTouchLocked && (
+                <TouchLockOverlay 
+                  t={t} 
+                  onUnlock={() => {
+                    setIsTouchLocked(false);
+                    triggerVibrate([10, 50, 10]);
+                  }} 
+                />
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {isSaving && (
+                <SavingOverlay t={t} isActive={isActive} />
+              )}
+            </AnimatePresence>
+
             {/* Footer info */}
             <footer className="mt-8 text-center pb-8 opacity-30">
               <p className="text-[8px] font-mono tracking-[0.3em] uppercase">
@@ -4105,52 +4026,256 @@ export default function App() {
               </p>
             </footer>
 
-            {/* Warning Popup */}
+            {/* Safety Notice Overlay */}
             <AnimatePresence>
-              {showWarning && (
+              {showWelcome && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md"
+                  className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-lg"
                 >
                   <motion.div
-                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                    initial={{ scale: 0.9, opacity: 0, y: 30 }}
                     animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                    className="bg-gray-900 border border-violet-500/30 rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl shadow-violet-500/10 text-center relative overflow-hidden"
+                    className="bg-gray-950 border border-white/5 rounded-[3rem] p-10 max-w-sm w-full shadow-[0_0_50px_rgba(0,0,0,0.5)] text-center relative overflow-hidden"
                   >
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-600 to-transparent" />
+                    
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.1),transparent_70%)] pointer-events-none" />
 
-                    <div className="w-16 h-16 bg-violet-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-violet-500/20">
-                      <AlertTriangle className="w-8 h-8 text-violet-500" />
+                    <div className="w-20 h-20 bg-red-600/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
+                      <ShieldAlert className="w-10 h-10 text-red-500" />
                     </div>
 
-                    <h2 className="text-xl font-black italic text-white mb-4 tracking-tighter uppercase">
-                      {t.warningTitle}
+                    <h2 className="text-2xl font-black italic text-white mb-4 tracking-tighter uppercase leading-tight">
+                      {t.safetyNotice}
                     </h2>
 
-                    <p className="text-sm text-gray-400 leading-relaxed mb-8 font-medium italic">
-                      "{t.warningMessage}"
-                    </p>
+                    <div className="relative mb-10">
+                       <p className="text-xs text-gray-400 leading-relaxed font-bold uppercase tracking-widest italic text-center px-2">
+                         {t.disclaimer}
+                       </p>
+                    </div>
 
                     <button
-                      onClick={() => setShowWarning(false)}
-                      className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-violet-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest italic"
+                      onClick={() => setShowWelcome(false)}
+                      className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-5 rounded-[2rem] shadow-2xl shadow-violet-950 transition-all flex items-center justify-center gap-3 text-sm uppercase tracking-[0.2em] italic"
                     >
-                      {t.next}
-                      <ChevronRight className="w-4 h-4" />
+                      {t.iAgree}
+                      <ChevronRight className="w-5 h-5 group-hover:translate-x-1" />
                     </button>
+                    
+                    <p className="mt-6 text-[8px] text-gray-700 font-black uppercase tracking-[0.3em]">
+                       {t.elitePerformance}
+                    </p>
                   </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
           </motion.main>
         )}
+
+        {/* Fixed Controls for Dashboard */}
+        <AnimatePresence>
+          {view === "dashboard" && (
+            <motion.div 
+              key="fixed-dashboard-controls"
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed bottom-8 left-4 right-4 z-50 max-w-lg mx-auto"
+            >
+              <div className="bg-black/60 backdrop-blur-xl p-4 rounded-[2rem] border border-white/5 shadow-2xl">
+                {!isLive ? (
+                  <div className="flex flex-col gap-3">
+                    <div
+                      className={`text-[10px] font-black uppercase tracking-[0.3em] text-center px-4 py-2.5 rounded-xl transition-all border ${isGpsLocked ? "bg-green-500/10 border-green-500/30 text-green-500" : "bg-orange-500/10 border-orange-500/30 text-orange-500 animate-pulse"}`}
+                    >
+                      {isGpsLocked ? t.signalReady : t.waitingSignal}
+                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleStart}
+                      className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 active:from-violet-700 active:to-indigo-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-violet-950/40 transition-all flex items-center justify-center gap-3 text-xl italic tracking-tight group"
+                    >
+                      <Play className="w-7 h-7 fill-current group-hover:scale-110 transition-transform" />
+                      {t.startTest}
+                    </motion.button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {!isActive && (
+                      <motion.button
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleForceLaunch}
+                        className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-black py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 text-base italic tracking-tight border border-gray-800"
+                      >
+                        <Zap className="w-5 h-5 fill-current animate-pulse" />
+                        {t.forceLaunch}
+                      </motion.button>
+                    )}
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleStop}
+                      className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-red-950/40 transition-all flex items-center justify-center gap-3 text-xl italic tracking-tight"
+                    >
+                      <CircleStop className="w-7 h-7" />
+                      {t.stopSave}
+                    </motion.button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </AnimatePresence>
     </div>
   );
 }
+
+const TouchLockOverlay = ({ t, onUnlock }: { t: Translations, onUnlock: () => void }) => {
+  const [unlockProgress, setUnlockProgress] = useState(0);
+  const pressTimer = useRef<number | null>(null);
+
+  const handleStart = () => {
+    setUnlockProgress(0);
+    pressTimer.current = window.setInterval(() => {
+      let shouldUnlock = false;
+      setUnlockProgress((prev) => {
+        if (prev >= 100) {
+          shouldUnlock = true;
+          return 100;
+        }
+        return prev + 3;
+      });
+
+      if (shouldUnlock) {
+        if (pressTimer.current) {
+          clearInterval(pressTimer.current);
+          pressTimer.current = null;
+        }
+        onUnlock();
+      }
+    }, 30);
+  };
+
+  const handleEnd = () => {
+    if (pressTimer.current) {
+      clearInterval(pressTimer.current);
+      pressTimer.current = null;
+    }
+    setUnlockProgress(0);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-8 select-none touch-none"
+    >
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
+      
+      <motion.div 
+        animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }}
+        transition={{ duration: 3, repeat: Infinity }}
+        className="w-32 h-32 bg-violet-500/10 rounded-full flex items-center justify-center mb-8 border border-violet-500/20 shadow-[0_0_50px_rgba(139,92,246,0.15)]"
+      >
+        <Lock className="w-12 h-12 text-violet-500" />
+      </motion.div>
+
+      <div className="text-center space-y-2 relative z-10">
+        <h3 className="text-xl font-black italic tracking-tighter text-white uppercase">
+          {t.lockMode || "TOUCH LOCK ACTIVE"}
+        </h3>
+        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest max-w-[200px]">
+          {t.lockDescription || "Long press unlock button to regain control"}
+        </p>
+      </div>
+
+      <div className="mt-auto w-full max-w-xs relative z-10">
+        <motion.button
+          onMouseDown={handleStart}
+          onMouseUp={handleEnd}
+          onMouseLeave={handleEnd}
+          onTouchStart={handleStart}
+          onTouchEnd={handleEnd}
+          className="relative w-full py-6 bg-gray-900 border border-gray-800 rounded-3xl overflow-hidden active:scale-95 transition-transform"
+        >
+          {/* Progress Bar Background */}
+          <div 
+            className="absolute left-0 top-0 bottom-0 bg-violet-600 transition-all duration-75"
+            style={{ width: `${unlockProgress}%` }}
+          />
+          
+          <span className="relative z-10 text-[11px] font-black italic tracking-widest uppercase text-white drop-shadow-md">
+            {unlockProgress >= 100 ? "RELEASE" : "HOLD TO UNLOCK"}
+          </span>
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+};
+
+const SavingOverlay = ({ t, isActive }: { t: Translations, isActive: boolean }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[600] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center"
+    >
+      <div className="relative mb-8">
+        <motion.div
+          animate={{ 
+            scale: [1, 1.2, 1],
+            rotate: [0, 180, 360],
+            borderColor: ["#8b5cf6", "#d946ef", "#8b5cf6"]
+          }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="w-24 h-24 rounded-3xl border-2 border-violet-500 flex items-center justify-center shadow-[0_0_40px_rgba(139,92,246,0.3)]"
+        >
+          {isActive ? (
+            <RefreshCw className="w-10 h-10 text-violet-400 animate-spin" />
+          ) : (
+            <CheckCircle2 className="w-10 h-10 text-green-400" />
+          )}
+        </motion.div>
+        
+        <motion.div
+          animate={{ opacity: [0, 1, 0], scale: [0.8, 1.2, 0.8] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+          className="absolute -top-2 -right-2 w-6 h-6 bg-violet-600 rounded-full blur-xl"
+        />
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="text-2xl font-black italic tracking-tighter text-white uppercase">
+          {isActive ? t.saving : t.saved}
+        </h3>
+        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] max-w-[240px] leading-loose">
+          {isActive 
+            ? "Syncing telemetry with cloud storage. Do not close the app." 
+            : "Race data secured and mirrored to historical records."}
+        </p>
+      </div>
+      
+      {!isActive && (
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: "100%" }}
+          className="mt-8 h-1 bg-green-500 absolute bottom-0 left-0"
+          transition={{ duration: 2 }}
+        />
+      )}
+    </motion.div>
+  );
+};
 
 // --- Memoized Components for Performance ---
 
@@ -4167,182 +4292,571 @@ interface DashboardViewProps {
   splits: Split[];
   isActive: boolean;
   isLive: boolean;
+  isTouchLocked: boolean;
+  setIsTouchLocked: (locked: boolean) => void;
   gForce: number;
   peakG: number;
   gpsAltitude: number | null;
   gpsHeading: number | null;
   isGpsLocked: boolean;
-  handleStart: () => void;
-  handleStop: () => void;
   formatTime: (ms: number) => string;
   formatDistance: (m: number) => string;
+  navigateView: (newView: "welcome" | "dashboard" | "history" | "settings" | "charts") => void;
 }
+
+// --- Optimized Small Components ---
+
+const LiveValue = React.memo(({ 
+  value, 
+  unit, 
+  label, 
+  color = "text-white",
+  size = "text-4xl",
+  icon: Icon
+}: { 
+  value: string | number, 
+  unit?: string, 
+  label: string, 
+  color?: string,
+  size?: string,
+  icon?: any
+}) => (
+  <div className="bg-gray-900/40 rounded-3xl p-5 border border-gray-800/50 flex flex-col items-center justify-center relative overflow-hidden group hover:border-violet-500/30 transition-colors backdrop-blur-sm">
+    <div className="absolute top-3 left-3 opacity-20 group-hover:opacity-40 transition-opacity">
+      {Icon && <Icon className="w-3 h-3" />}
+    </div>
+    <div className="text-[10px] font-mono text-gray-500 mb-1 tracking-widest uppercase">
+      {label}
+    </div>
+    <div className={`font-black italic tracking-tighter tabular-nums ${size} ${color} flex items-baseline gap-1`}>
+      {value}
+      {unit && <span className="text-xs not-italic opacity-30 font-bold uppercase">{unit}</span>}
+    </div>
+  </div>
+));
+
+const BentoCard = ({ children, className = "", title, icon: Icon }: { children: React.ReactNode, className?: string, title?: string, icon?: any }) => (
+  <div className={`bg-gray-900/40 rounded-[2rem] border border-gray-800/50 p-6 relative overflow-hidden group backdrop-blur-md ${className}`}>
+    <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+    {title && (
+      <div className="flex items-center gap-2 mb-4">
+        {Icon && <Icon className="w-3.5 h-3.5 text-violet-500/70" />}
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+          {title}
+        </span>
+      </div>
+    )}
+    {children}
+  </div>
+);
+
+const LiveTelemetryChart = React.memo(({ 
+  realTimeSpeedData, 
+  currentSpeed, 
+  gForce, 
+  peakG, 
+  t 
+}: { 
+  realTimeSpeedData: any[], 
+  currentSpeed: number, 
+  gForce: number, 
+  peakG: number, 
+  t: Translations 
+}) => (
+  <div className="bg-gray-900/80 rounded-[2.5rem] border border-violet-500/20 p-6 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
+    <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(139,92,246,1)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,1)_1px,transparent_1px)] bg-[size:20px_20px]" />
+
+    <div className="flex justify-between items-center mb-6 relative z-10">
+      <div className="flex items-center gap-3">
+        <div
+          className={`w-2 h-2 rounded-full ${currentSpeed > 2 ? "bg-red-500 animate-pulse shadow-[0_0_10px_red]" : "bg-gray-600"}`}
+        />
+        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-violet-400 italic">
+          Live Telemetry Monitor
+        </h3>
+      </div>
+      <div className="px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-full">
+        <span className="text-[8px] font-bold text-violet-500 uppercase flex items-center gap-1">
+          <Signal className="w-2 h-2" /> GPS-L1 LOCKED
+        </span>
+      </div>
+    </div>
+
+    <div className="h-48 w-full relative z-10">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart
+          data={realTimeSpeedData}
+          margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
+        >
+          <defs>
+            <linearGradient
+              id="colorSpeedLive"
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop
+                offset="5%"
+                stopColor="#8b5cf6"
+                stopOpacity={0.3}
+              />
+              <stop
+                offset="95%"
+                stopColor="#8b5cf6"
+                stopOpacity={0}
+              />
+            </linearGradient>
+          </defs>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="#ffffff05"
+            vertical={true}
+          />
+          <XAxis dataKey="time" hide />
+          <YAxis
+            stroke="#ffffff10"
+            fontSize={8}
+            tickLine={false}
+            axisLine={false}
+            domain={[
+              0,
+              (dataMax: number) =>
+                Math.max(
+                  100,
+                  Math.ceil(dataMax / 20) * 20 + 20,
+                ),
+            ]}
+            tick={{
+              fill: "#444",
+              fontSize: 8,
+              fontWeight: "bold",
+            }}
+          />
+          <Area
+            type="monotone"
+            dataKey="speed"
+            stroke="#8b5cf6"
+            strokeWidth={3}
+            fillOpacity={1}
+            fill="url(#colorSpeedLive)"
+            isAnimationActive={false}
+            connectNulls={true}
+          />
+          {(() => {
+            const realPoints = realTimeSpeedData.filter(
+              (p) =>
+                p.speed !== undefined &&
+                !p.time.startsWith("future") &&
+                !p.time.startsWith("init"),
+            );
+            const lastPoint = realPoints[realPoints.length - 1];
+            if (!lastPoint) return null;
+            return (
+              <ReferenceDot
+                x={lastPoint.time}
+                y={lastPoint.speed}
+                r={4}
+                fill="#8b5cf6"
+                stroke="#fff"
+                strokeWidth={1}
+                isFront={true}
+              />
+            );
+          })()}
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+
+    <div className="grid grid-cols-3 gap-4 mt-6">
+      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
+          Velocity
+        </p>
+        <p className="text-xl font-black text-white italic">
+          {Math.round(currentSpeed)}{" "}
+          <span className="text-[8px] opacity-40">KPH</span>
+        </p>
+      </div>
+      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
+          G-Force
+        </p>
+        <p className="text-xl font-black text-violet-400 italic">
+          {gForce.toFixed(2)}{" "}
+          <span className="text-[8px] opacity-40">G</span>
+        </p>
+      </div>
+      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
+          Peak-G
+        </p>
+        <p className="text-xl font-black text-blue-400 italic">
+          {peakG.toFixed(2)}{" "}
+          <span className="text-[8px] opacity-40">MAX</span>
+        </p>
+      </div>
+    </div>
+  </div>
+));
+
+const CompareChart = React.memo(({ 
+  history, 
+  selectedRuns 
+}: { 
+  history: any[], 
+  selectedRuns: string[] 
+}) => {
+  const activeRuns = useMemo(() => history.filter((r) => selectedRuns.includes(r.id)), [history, selectedRuns]);
+
+  const chartData = useMemo(() => {
+    let timeMap: Record<number, any> = {};
+    
+    activeRuns.forEach((run, idx) => {
+      const runData = (run.telemetry && run.telemetry.length > 5) ? run.telemetry : Array.from({ length: 20 }, (_, i) => {
+        const t = (i / 19) * (run.totalTime / 1000);
+        const progress = i / 19;
+        const speed = run.maxSpeed * (1 - Math.pow(1 - progress, 2));
+        return { time: t, speed };
+      });
+      
+      runData.forEach((pt: any) => {
+        // Group by 100ms buckets to align the disparate telemetry points
+        const roundedTime = Math.round(pt.time * 10) / 10;
+        if (!timeMap[roundedTime]) {
+          timeMap[roundedTime] = { time: roundedTime };
+        }
+        timeMap[roundedTime][`run${idx}_speed`] = pt.speed;
+      });
+    });
+    
+    // Sort ascending by time
+    const sortedData = Object.values(timeMap).sort((a: any, b: any) => a.time - b.time);
+    return sortedData;
+  }, [activeRuns]);
+
+  if (activeRuns.length === 0) return null;
+
+  const runColors = [
+    { speed: "#ef4444" }, // Red
+    { speed: "#06b6d4" }, // Cyan
+    { speed: "#a855f7" }, // Purple
+    { speed: "#10b981" }, // Emerald
+    { speed: "#f59e0b" }, // Amber
+  ];
+
+  return (
+    <div className="bg-[#050505] rounded-[2.5rem] border border-white/5 p-6 flex flex-col gap-6 relative overflow-hidden shadow-2xl mt-4">
+      <div className="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:30px_30px]" />
+      
+      <div className="flex flex-col w-full z-20 mb-2 items-center">
+        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 mb-1 italic">Compare Graphs</h3>
+      </div>
+
+      <div className="flex flex-wrap gap-4 w-full z-10 justify-center">
+        {activeRuns.map((run, idx) => {
+          const colors = runColors[idx % runColors.length];
+          return (
+            <div key={run.id} className="flex items-center gap-4 bg-white/5 backdrop-blur-md px-4 py-2 rounded-xl border border-white/5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                Run {idx + 1}
+              </span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="w-4 h-[2px]" style={{ backgroundColor: colors.speed }} />
+                <span className="text-[9px] font-bold uppercase tracking-tighter" style={{ color: colors.speed }}>Speed ({run.maxSpeed.toFixed(0)} MAX)</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="h-[350px] w-full bg-black/40 border border-white/5 shadow-inner rounded-[1.5rem] p-4 lg:p-6 pb-2 z-10">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart margin={{ top: 10, right: 10, left: -20, bottom: 0 }} data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
+            <XAxis 
+              dataKey="time" 
+              type="number" 
+              domain={['dataMin', 'dataMax']} 
+              stroke="#555" 
+              fontSize={10} 
+              tickLine={false} 
+              axisLine={{ stroke: "#333" }} 
+              tick={{ fill: "#666", fontWeight: "bold" }}
+              tickFormatter={(v) => v.toFixed(1)}
+              label={{
+                value: "TIME (SECONDS)",
+                position: "insideBottom",
+                offset: -10,
+                fill: "#555",
+                fontSize: 10,
+                fontWeight: "black",
+                letterSpacing: 2
+              }}
+            />
+            <YAxis 
+              stroke="#555" 
+              fontSize={10} 
+              tickLine={false} 
+              axisLine={{ stroke: "#333" }} 
+              tick={{ fill: "#666", fontWeight: "bold" }}
+              tickFormatter={(v) => Math.round(v).toString()}
+            />
+            <Tooltip 
+              contentStyle={{ backgroundColor: "#111", border: "1px solid #333", borderRadius: "8px", color: "#fff", fontSize: "10px", fontWeight: "bold" }}
+              itemStyle={{ fontSize: "12px", fontWeight: "900" }}
+              formatter={(value: any, name: string) => {
+                const parts = name.split('_');
+                return [`${Number(value).toFixed(1)} KM/H`, `RUN ${parseInt(parts[0].replace('run', '')) + 1}`];
+              }}
+              labelFormatter={(label) => `${Number(label).toFixed(2)}s`}
+            />
+            {activeRuns.map((run, idx) => (
+              <Line 
+                key={`run${idx}`}
+                type="monotone" 
+                dataKey={`run${idx}_speed`} 
+                stroke={runColors[idx % runColors.length].speed}
+                strokeWidth={3} 
+                dot={false}
+                activeDot={{ r: 6, fill: runColors[idx % runColors.length].speed, stroke: "#111", strokeWidth: 2 }}
+                connectNulls={true}
+                isAnimationActive={false}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+});
+
+const RecordsTable = React.memo(({ 
+  history, 
+  selectedRuns, 
+  setSelectedRuns 
+}: { 
+  history: any[], 
+  selectedRuns: string[], 
+  setSelectedRuns: React.Dispatch<React.SetStateAction<string[]>> 
+}) => (
+  <div className="bg-gray-950/40 border border-violet-500/10 overflow-hidden mx-1 mb-1 rounded-xl">
+    <div className="overflow-x-auto custom-scrollbar">
+      <table className="w-full text-left border-collapse min-w-[600px]">
+        <thead>
+          <tr className="bg-violet-950/30 border-b border-violet-500/10">
+            <th className="px-3 py-3 w-10"></th>
+            <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest">Date & Time</th>
+            <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest">ID Run</th>
+            <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">Max KPH</th>
+            <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">Max G</th>
+            <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">Dist (m)</th>
+            <th className="text-[9px] font-black px-3 py-3 text-violet-300 uppercase tracking-widest text-center">Time (s)</th>
+          </tr>
+        </thead>
+        <tbody className="text-[9px] font-mono">
+          {history.length === 0 ? (
+            <tr className="text-gray-600 italic">
+              <td colSpan={7} className="px-4 py-12 text-center bg-transparent uppercase tracking-[0.4em] opacity-30 text-[8px]">
+                No records found
+              </td>
+            </tr>
+          ) : (
+            history.map((run) => (
+              <tr
+                key={run.id}
+                className={`border-b border-violet-500/5 transition-all uppercase cursor-pointer relative group ${selectedRuns.includes(run.id) ? "bg-violet-600/15" : "hover:bg-violet-500/5"}`}
+                onClick={() => {
+                  setSelectedRuns((prev) => prev.includes(run.id) ? prev.filter((id) => id !== run.id) : [...prev, run.id]);
+                }}
+              >
+                <td className="px-3 py-3 text-center">
+                  {selectedRuns.includes(run.id) ? (
+                    <div className="flex items-center justify-center">
+                      <CheckSquare className="w-4 h-4 text-violet-400" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center">
+                      <Square className="w-4 h-4 text-gray-700 group-hover:text-gray-600" />
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-3 font-bold text-gray-300">
+                  {new Date(run.date).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                </td>
+                <td className="px-3 py-3 text-gray-500 font-medium">RUN_{(run.id || "0000").slice(-4)}</td>
+                <td className="px-3 py-3 font-black text-red-500/80 text-center text-xs italic">{Math.round(run.maxSpeed)}</td>
+                <td className="px-3 py-3 font-black text-blue-500/80 text-center text-xs italic">{run.peakG?.toFixed(2) || "0.00"}</td>
+                <td className="px-3 py-3 text-center text-gray-400">{Math.round(run.totalDistance)}</td>
+                <td className="px-3 py-3 font-black text-center text-violet-400 text-xs italic">{(run.totalTime / 1000).toFixed(2)}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  </div>
+));
 
 const DashboardView = React.memo(({ 
   t, currentSpeed, accuracy, gpsHz, gpsVersion, calibrateGPS, 
   maxSpeed, elapsedTime, distanceCovered, splits, isActive, isLive,
+  isTouchLocked, setIsTouchLocked,
   gForce, peakG, gpsAltitude, gpsHeading, isGpsLocked, 
-  handleStart, handleStop, formatTime, formatDistance 
+  formatTime, formatDistance, navigateView 
 }: DashboardViewProps) => {
   return (
     <motion.div
       key="dashboard"
-      initial={{ opacity: 0, x: 10 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -10 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-      className="flex-1 flex flex-col gap-6 will-change-[opacity,transform]"
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+      className="flex-1 flex flex-col gap-4 pb-8"
     >
-      {/* Primary Speed Display */}
-      <div className="bg-gray-900/40 rounded-3xl p-8 border border-gray-800 flex flex-col items-center justify-center relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      {/* Hero Section: Speed & Main Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-gray-900/40 rounded-[2.5rem] p-10 border border-violet-500/20 flex flex-col items-center justify-center relative overflow-hidden group shadow-2xl shadow-violet-950/20">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.1),transparent_70%)]" />
+          
+          <div className="absolute top-6 right-6 flex items-center gap-2">
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setIsTouchLocked(!isTouchLocked)}
+                className={`p-3 rounded-2xl border transition-all shadow-lg backdrop-blur-md ${isTouchLocked ? 'bg-violet-600 border-violet-500 text-white' : 'bg-white/5 border-gray-800 text-violet-500 hover:bg-violet-600 hover:text-white'}`}
+              >
+                {isTouchLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+              </motion.button>
+          </div>
 
-        <div className="text-[10px] font-mono text-violet-500 mb-2 tracking-[0.2em] uppercase">
-          {t.currentSpeed}
-        </div>
-        <div className="relative transform-gpu will-change-transform">
-          <div className="text-8xl font-black italic tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(139,92,246,0.3)]">
-            {Math.round(currentSpeed)}
+          <div className="text-xs font-mono text-violet-500 mb-2 tracking-[0.3em] uppercase font-black">
+            {t.currentSpeed}
           </div>
-          <div className="absolute -right-10 bottom-4 text-sm font-bold text-gray-500 italic">
-            KM/H
-          </div>
-        </div>
-
-        {/* Accuracy Status Indicator */}
-        <div className="flex flex-col items-center gap-1 mt-4 relative">
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full ${accuracy !== null && accuracy < 10 ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : accuracy !== null && accuracy <= 30 ? "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"} shadow-lg`}
-            />
-            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-              {t.gpsAccuracyLabel}
-            </span>
-          </div>
-          <div className="text-[10px] font-black font-mono text-gray-400 italic flex items-center gap-2">
-            <span>
-              {gpsHz > 0 ? gpsHz.toFixed(1) : "0.0"} Hz{" "}
-              <span className="text-[8px] text-gray-600 uppercase font-bold not-italic ml-0.5">
-                Update rate
-              </span>
-            </span>
-            <motion.button
-              whileTap={{ scale: 0.8 }}
-              animate={{ rotate: gpsVersion * 360 }}
-              transition={{
-                type: "spring",
-                stiffness: 200,
-                damping: 10,
-              }}
-              onClick={calibrateGPS}
-              className="p-1 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 hover:border-violet-500/50 transition-colors text-violet-400"
-              title={t.calibrate}
+          
+          <div className="relative transform-gpu will-change-transform flex items-center justify-center">
+            <motion.div 
+              key={Math.round(currentSpeed)}
+              initial={{ scale: 0.95, opacity: 0.8 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="text-[10rem] font-black italic tracking-tighter tabular-nums leading-none drop-shadow-[0_0_30px_rgba(139,92,246,0.4)]"
             >
-              <Crosshair className="w-2.5 h-2.5" />
-            </motion.button>
+              {Math.round(currentSpeed)}
+            </motion.div>
+            <div className="absolute -right-8 bottom-6 text-xl font-black text-gray-600 italic tracking-tighter">
+              KPH
+            </div>
+          </div>
+
+          {/* Quick Stats in Hero */}
+          <div className="mt-8 grid grid-cols-2 gap-12 w-full max-w-xs border-t border-white/5 pt-8">
+            <div className="text-center">
+              <div className="text-[9px] uppercase font-black text-gray-500 mb-1 tracking-widest">
+                {t.maxSpeed}
+              </div>
+              <div className="text-3xl font-black font-mono text-violet-400 italic leading-none">
+                {Math.round(maxSpeed)}
+              </div>
+            </div>
+            <div className="text-center border-l border-white/5">
+              <div className="text-[9px] uppercase font-black text-gray-500 mb-1 tracking-widest">
+                {t.accuracy}
+              </div>
+              <div className={`text-3xl font-black font-mono italic leading-none ${accuracy !== null && accuracy < 10 ? "text-green-500" : "text-yellow-500"}`}>
+                {accuracy ? `±${Math.round(accuracy)}` : "--"}
+                <span className="text-[10px] ml-0.5 opacity-50 uppercase">m</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-8 w-full border-t border-gray-800 pt-6">
-          <div className="text-center">
-            <div className="text-[10px] uppercase font-mono text-gray-500 mb-1">
-              {t.maxSpeed}
+        <div className="grid grid-cols-2 gap-4">
+          <BentoCard icon={Timer} title={t.elapsedTime}>
+            <div className="text-5xl font-black font-mono italic tracking-tighter text-blue-400 leading-none mb-1">
+              {formatTime(elapsedTime)}
             </div>
-            <div className="text-2xl font-bold font-mono text-violet-400 italic">
-              {Math.round(maxSpeed)}{" "}
-              <span className="text-[10px]">KM/H</span>
+            <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">SECONDS</div>
+          </BentoCard>
+
+          <BentoCard icon={MapPin} title={t.distance}>
+            <div className="text-5xl font-black font-mono italic tracking-tighter text-green-400 leading-none mb-1">
+              {formatDistance(distanceCovered).replace(/[a-z]/g, '')}
             </div>
-          </div>
-          <div className="text-center border-l border-gray-800">
-            <div className="text-[10px] uppercase font-mono text-gray-500 mb-1">
-              {t.accuracy}
+            <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+              {formatDistance(distanceCovered).includes('km') ? 'KILOMETERS' : 'METERS'}
             </div>
-            <div
-              className={`text-2xl font-bold font-mono italic ${accuracy !== null && accuracy < 10 ? "text-green-500" : "text-yellow-500"}`}
-            >
-              {accuracy ? `±${Math.round(accuracy)}m` : "--"}
+          </BentoCard>
+
+          <BentoCard icon={Activity} title={t.gForce} className="col-span-2">
+            <div className="flex items-end justify-between">
+              <div className="flex items-baseline gap-2">
+                <span className="text-6xl font-black font-mono italic text-violet-500 leading-none">
+                  {gForce.toFixed(2)}
+                </span>
+                <span className="text-sm text-gray-500 font-black italic">G</span>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">Peak G</div>
+                <div className="text-2xl font-black text-violet-400 font-mono italic leading-none">{peakG.toFixed(2)}</div>
+              </div>
             </div>
-          </div>
+            <div className="mt-4 h-2 bg-black/40 rounded-full p-0.5 border border-white/5">
+              <motion.div
+                className="h-full bg-gradient-to-r from-violet-600 to-indigo-500 rounded-full shadow-[0_0_15px_rgba(139,92,246,0.6)]"
+                animate={{ width: `${Math.min(Math.abs(gForce) * 50, 100)}%` }}
+                transition={{ type: "spring", stiffness: 100, damping: 15 }}
+              />
+            </div>
+          </BentoCard>
         </div>
       </div>
 
-      {/* Progress & Timer */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800">
-          <div className="flex items-center gap-2 mb-2">
-            <Timer className="w-4 h-4 text-blue-400" />
-            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">
-              {t.elapsedTime}
-            </span>
+      {/* Main Splits Panel */}
+      <div className="bg-gray-950 rounded-[2.5rem] border border-gray-800/80 overflow-hidden shadow-2xl relative">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.05),transparent_50%)]" />
+        
+        <div className="flex items-center justify-between p-7 border-b border-white/5 bg-gray-900/20 relative z-10 shrink-0">
+          <div className="flex items-center gap-3">
+            <TrendingUp className="w-5 h-5 text-violet-500" />
+            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white italic">
+              {t.splitsTargets}
+            </h2>
           </div>
-          <div className="text-3xl font-black font-mono italic tracking-tight">
-            {formatTime(elapsedTime)}
-            <span className="text-xs ml-1 text-gray-600">S</span>
-          </div>
-        </div>
-        <div className="bg-gray-900/40 rounded-2xl p-4 border border-gray-800">
-          <div className="flex items-center gap-2 mb-2">
-            <MapPin className="w-4 h-4 text-green-400" />
-            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">
-              {t.distance}
-            </span>
-          </div>
-          <div className="text-3xl font-black font-mono italic tracking-tight">
-            {formatDistance(distanceCovered)}
-          </div>
-        </div>
-      </div>
-
-      {/* Splits Table */}
-      <div className="bg-gray-950/80 rounded-3xl border border-gray-800 overflow-hidden mb-6">
-        <div className="flex items-center justify-between p-4 border-b border-gray-800/50 bg-gray-900/20">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 flex items-center gap-2">
-            <TrendingUp className="w-3 h-3" /> {t.splitsTargets}
-          </h2>
           {isActive && (
-            <div className="flex items-center gap-1.5 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
-              <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.5)]" />
-              <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="flex items-center gap-2 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.15)]"
+            >
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_#ef4444]" />
+              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest italic">
                 {t.recording}
               </span>
-            </div>
+            </motion.div>
           )}
         </div>
 
-        {/* Table Header */}
-        <div className="px-4 py-1.5 grid grid-cols-[1fr_auto_1fr] items-center gap-4 bg-black/20 border-b border-gray-800">
-          <span className="text-[8px] font-bold text-gray-600 uppercase tracking-wider">
-            {t.distance}
-          </span>
-          <span className="text-[8px] font-bold text-gray-600 uppercase tracking-wider text-center">
-            TIME
-          </span>
-          <span className="text-[8px] font-bold text-gray-600 uppercase tracking-wider text-right">
-            KPH
-          </span>
-        </div>
-
-        <div className="divide-y divide-gray-800/30">
+        <div className="divide-y divide-white/[0.03] relative z-10 overflow-y-auto max-h-[300px] lg:max-h-[400px] custom-scrollbar">
           {splits.map((s, i) => (
             <div
-              key={i}
-              className={`px-4 py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-4 transition-colors ${s.time ? "bg-violet-500/5" : ""}`}
+              key={`${s.label}-${i}`}
+              className={`px-8 py-5 grid grid-cols-[1.5fr_auto_1fr] items-center gap-6 transition-all ${s.time ? "bg-violet-500/[0.02]" : "hover:bg-white/[0.01]"}`}
             >
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-gray-200">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-black text-gray-200 italic uppercase">
                   {s.label}
                 </span>
-                <span className="text-[8px] font-mono text-gray-500 uppercase tracking-widest">
-                  {formatDistance(s.distance)}
+                <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest font-bold">
+                  {s.type === "speed" ? `${s.targetSpeed} KPH TARGET` : `${formatDistance(s.distance || 0)} TARGET`}
                 </span>
               </div>
 
-              <div className="text-center">
+              <div className="text-center min-w-[100px]">
                 <div
-                  className={`text-xl font-black italic tabular-nums leading-none ${s.time ? "text-white" : "text-gray-800"}`}
+                  className={`text-3xl font-black italic tabular-nums leading-none tracking-tighter ${s.time ? "text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" : "text-gray-800"}`}
                 >
                   {s.time ? s.time.toFixed(2) : "--.--"}
-                  <span className="text-[10px] ml-0.5 not-italic uppercase opacity-30">
+                  <span className="text-xs ml-1 not-italic uppercase opacity-20 font-bold">
                     s
                   </span>
                 </div>
@@ -4350,12 +4864,12 @@ const DashboardView = React.memo(({
 
               <div className="text-right">
                 <div
-                  className={`text-lg font-black font-mono tracking-tighter italic ${s.speedAtSplit ? "text-blue-400" : "text-gray-700"}`}
+                  className={`text-xl font-black font-mono tracking-tighter italic ${s.speedAtSplit ? "text-blue-400" : "text-gray-800"}`}
                 >
                   {s.speedAtSplit
                     ? Math.round(s.speedAtSplit)
                     : "---"}
-                  <span className="text-[8px] ml-0.5 not-italic opacity-40">
+                  <span className="text-[10px] ml-1 not-italic opacity-30 font-bold uppercase">
                     kph
                   </span>
                 </div>
@@ -4365,111 +4879,32 @@ const DashboardView = React.memo(({
         </div>
       </div>
 
-      {/* G-Force & GPS Info Grid */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="bg-gray-950/80 rounded-3xl p-4 border border-gray-800 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-16 h-16 bg-violet-500/5 blur-2xl -mr-8 -mt-8" />
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black text-violet-500 uppercase tracking-[0.2em]">
-              {t.gForce}
-            </span>
-            <Activity className="w-3 h-3 text-violet-500/50" />
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-black font-mono italic text-violet-500 leading-none">
-              {gForce.toFixed(2)}
-            </span>
-            <span className="text-[10px] text-gray-600 font-bold italic">
-              G
+      {/* GPS Status & Calibration Bar */}
+      <div className="bg-gray-900/60 rounded-2xl p-4 border border-gray-800 flex items-center justify-between px-6 mb-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 rounded-full ${accuracy !== null && accuracy < 10 ? "bg-green-500" : accuracy !== null && accuracy <= 30 ? "bg-yellow-500" : "bg-red-500"} animate-pulse shadow-lg`} />
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              {t.gpsAccuracyLabel}
             </span>
           </div>
-          <div className="mt-3 h-1 bg-gray-900 rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]"
-              animate={{ width: `${Math.min(gForce * 50, 100)}%` }}
-            />
-          </div>
-          <div className="mt-2 text-[8px] text-gray-500 font-mono flex justify-between uppercase">
-            <span>Peak</span>
-            <span className="text-violet-400 font-black">
-              {peakG.toFixed(2)}G
-            </span>
+          <div className="w-px h-4 bg-gray-800" />
+          <div className="text-[10px] font-black font-mono text-gray-500 italic">
+            {gpsHz > 0 ? gpsHz.toFixed(1) : "0.0"} <span className="opacity-50">HZ RATE</span>
           </div>
         </div>
-
-        <div className="bg-gray-900/60 rounded-3xl p-4 border border-gray-800 relative overflow-hidden">
-          <div className="absolute bottom-0 left-0 w-12 h-12 bg-blue-500/5 blur-2xl -ml-6 -mb-6" />
-          <div className="text-[10px] font-mono text-gray-500 uppercase mb-2 tracking-widest">
-            {t.gpsInfo}
-          </div>
-          <div className="space-y-1.5 font-mono text-[9px]">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">
-                {t.altitude.toUpperCase()}
-              </span>
-              <span className="text-blue-300 font-bold">
-                {gpsAltitude !== null
-                  ? `${Math.round(gpsAltitude)}m`
-                  : "---"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">
-                {t.heading.toUpperCase()}
-              </span>
-              <span className="text-blue-300 font-bold">
-                {gpsHeading !== null
-                  ? `${Math.round(gpsHeading)}°`
-                  : "---"}
-              </span>
-            </div>
-            <div className="flex justify-between border-t border-gray-800 pt-1 mt-1">
-              <span className="text-gray-600 flex items-center gap-1">
-                ACC
-              </span>
-              <span
-                className={`font-black ${accuracy && accuracy < 5 ? "text-green-500" : "text-orange-500"}`}
-              >
-                ±{accuracy ? accuracy.toFixed(1) : "---"}m
-              </span>
-            </div>
-          </div>
-        </div>
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          animate={{ rotate: gpsVersion * 180 }}
+          onClick={calibrateGPS}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-violet-600/10 border border-violet-500/20 text-violet-400 text-[10px] font-black uppercase tracking-wider hover:bg-violet-600 hover:text-white transition-colors"
+        >
+          <Crosshair className="w-3.5 h-3.5" />
+          {t.calibrate}
+        </motion.button>
       </div>
 
-      {/* Controls */}
-      <div className="mt-auto space-y-4">
-        {!isLive ? (
-          <div className="flex flex-col gap-3">
-            <div
-              className={`text-[10px] font-black uppercase tracking-[0.2em] text-center px-4 py-2 rounded-xl transition-all border ${isGpsLocked ? "bg-green-500/10 border-green-500/30 text-green-500" : "bg-orange-500/10 border-orange-500/30 text-orange-500 animate-pulse"}`}
-            >
-              {isGpsLocked ? t.signalReady : t.waitingSignal}
-            </div>
-            <motion.button
-              whileTap={{ scale: 0.96 }}
-              onClick={handleStart}
-              className="w-full bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-violet-950/20 transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight group"
-            >
-              <Play className="w-6 h-6 fill-current group-hover:scale-110 transition-transform" />
-              {t.startTest}
-            </motion.button>
-          </div>
-        ) : (
-          <motion.button
-            whileTap={{ scale: 0.96 }}
-            onClick={handleStop}
-            className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-red-950/20 transition-all flex items-center justify-center gap-3 text-lg italic tracking-tight"
-          >
-            <CircleStop className="w-6 h-6" />
-            {t.stopSave}
-          </motion.button>
-        )}
-
-        <p className="text-[9px] text-center text-gray-500 leading-relaxed max-w-[280px] mx-auto uppercase tracking-tighter">
-          {t.movementDetected}
-        </p>
-      </div>
+      <div className="h-40" /> {/* Spacer for fixed controls */}
     </motion.div>
   );
 });

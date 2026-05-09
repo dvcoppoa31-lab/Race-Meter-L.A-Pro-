@@ -14,8 +14,8 @@ export default defineConfig(({mode}) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
-          name: 'DRAG RACE L.A PRO+',
-          short_name: 'DragRaceLA',
+          name: 'RACE METER L.A PRO+',
+          short_name: 'RaceMeterLA',
           description: 'Elite Performance GPS Race Meter',
           theme_color: '#111111',
           background_color: '#111111',
