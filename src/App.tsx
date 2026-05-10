@@ -58,6 +58,8 @@ import {
   Zap,
   Cpu,
   Cloud,
+  Sun,
+  CloudRain,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -208,6 +210,15 @@ interface Translations {
   saving: string;
   saved: string;
   forceLaunch: string;
+  weather: string;
+  weatherConditions: string;
+  weatherSuggestion: string;
+  sunnyDescription: string;
+  sunnySuggestion: string;
+  cloudyDescription: string;
+  cloudySuggestion: string;
+  rainyDescription: string;
+  rainySuggestion: string;
 }
 
 const TRANSLATIONS: Record<Language, Translations> = {
@@ -289,6 +300,15 @@ const TRANSLATIONS: Record<Language, Translations> = {
     saving: "MENYIMPAN...",
     saved: "TERSİMPAN!",
     forceLaunch: "LUNCURKAN SEKARANG (MANUAL)",
+    weather: "Cuaca",
+    weatherConditions: "Kondisi Alam",
+    weatherSuggestion: "Saran Performa",
+    sunnyDescription: "Cerah, Aspal Kering",
+    sunnySuggestion: "Optimal untuk tes traksi maksimal.",
+    cloudyDescription: "Mendung, Aspal Dingin",
+    cloudySuggestion: "Traksi mungkin sedikit berkurang.",
+    rainyDescription: "Hujan, Aspal Basah",
+    rainySuggestion: "SANGAT BERBAHAYA! Jangan lakukan tes traksi.",
   },
   en: {
     welcome: "WELCOME",
@@ -369,6 +389,15 @@ const TRANSLATIONS: Record<Language, Translations> = {
     saving: "SAVING...",
     saved: "SAVED!",
     forceLaunch: "FORCE LAUNCH (MANUAL)",
+    weather: "Weather",
+    weatherConditions: "Environmental Conditions",
+    weatherSuggestion: "Performance Suggestion",
+    sunnyDescription: "Sunny, Dry Asphalt",
+    sunnySuggestion: "Optimal for maximum traction testing.",
+    cloudyDescription: "Cloudy, Cold Asphalt",
+    cloudySuggestion: "Traction may be slightly reduced.",
+    rainyDescription: "Rainy, Wet Asphalt",
+    rainySuggestion: "VERY DANGEROUS! Do not perform traction tests.",
   },
   th: {
     welcome: "ยินดีต้อนรับ",
@@ -448,6 +477,15 @@ const TRANSLATIONS: Record<Language, Translations> = {
     saving: "กำลังบันทึก...",
     saved: "บันทึกแล้ว!",
     forceLaunch: "เริ่มทันที (แบบกำหนดเอง)",
+    weather: "สภาพอากาศ",
+    weatherConditions: "สภาพสิ่งแวดล้อม",
+    weatherSuggestion: "คำแนะนำสำหรับสมรรถนะ",
+    sunnyDescription: "แดดจัด ถนนแห้ง",
+    sunnySuggestion: "เหมาะที่สุดสำหรับการทดสอบแรงยึดเกาะสูงสุด",
+    cloudyDescription: "เมฆมาก ถนนเย็น",
+    cloudySuggestion: "แรงยึดเกาะอาจลดลงเล็กน้อย",
+    rainyDescription: "ฝนตก ถนนเปียก",
+    rainySuggestion: "อันตรายมาก! ห้ามทำการทดสอบแรงยึดเกาะ",
   },
   vi: {
     welcome: "CHÀO MỪNG",
@@ -529,6 +567,15 @@ const TRANSLATIONS: Record<Language, Translations> = {
     saving: "ĐANG LƯU...",
     saved: "ĐÃ LƯU!",
     forceLaunch: "BẮT ĐẦU NGAY (THỦ CÔNG)",
+    weather: "Thời tiết",
+    weatherConditions: "Điều kiện môi trường",
+    weatherSuggestion: "Gợi ý hiệu suất",
+    sunnyDescription: "Nắng, Nhựa khô",
+    sunnySuggestion: "Tối ưu cho việc kiểm tra lực kéo tối đa.",
+    cloudyDescription: "Mây, Nhựa lạnh",
+    cloudySuggestion: "Lực kéo có thể giảm nhẹ.",
+    rainyDescription: "Mưa, Nhựa ướt",
+    rainySuggestion: "RẤT NGUY HIỂM! Không thực hiện kiểm tra lực kéo.",
   },
   ms: {
     welcome: "SELAMAT DATANG",
@@ -609,6 +656,15 @@ const TRANSLATIONS: Record<Language, Translations> = {
     saving: "MENYIMPAN...",
     saved: "TERSİMPAN!",
     forceLaunch: "LANCARKAN SEKARANG (MANUAL)",
+    weather: "Cuaca",
+    weatherConditions: "Keadaan persekitaran",
+    weatherSuggestion: "Cadangan prestasi",
+    sunnyDescription: "Cerah, Jalan kering",
+    sunnySuggestion: "Optimum untuk ujian cengkaman maksimum.",
+    cloudyDescription: "Mendung, Jalan sejuk",
+    cloudySuggestion: "Cengkaman mungkin berkurangan sedikit.",
+    rainyDescription: "Hujan, Jalan basah",
+    rainySuggestion: "SANGAT BERBAHAYA! Jangan buat ujian cengkaman.",
   },
 };
 
@@ -5139,6 +5195,46 @@ const RecordsTable = React.memo(({
   );
 });
 
+const WeatherCard = React.memo(({ t }: { t: Translations }) => {
+  const [condition, setCondition] = useState<"sunny" | "cloudy" | "rainy">("sunny");
+  
+  const info = useMemo(() => {
+    switch (condition) {
+      case "sunny": return { desc: t.sunnyDescription, sugg: t.sunnySuggestion, icon: Sun, color: "text-amber-500", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/50" };
+      case "cloudy": return { desc: t.cloudyDescription, sugg: t.cloudySuggestion, icon: Cloud, color: "text-gray-400", bgClass: "bg-gray-500/10", borderClass: "border-gray-500/50" };
+      case "rainy": return { desc: t.rainyDescription, sugg: t.rainySuggestion, icon: CloudRain, color: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/50" };
+    }
+  }, [condition, t]);
+  
+  const Icon = info.icon;
+  return (
+    <section className="bg-gray-950/60 rounded-3xl border border-violet-500/30 p-6 shadow-xl shadow-violet-500/5">
+       <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Cloud className="w-4 h-4" /> {t.weather}
+        </div>
+       </h3>
+       
+       <div className="grid grid-cols-3 gap-2 mb-4">
+         {(["sunny", "cloudy", "rainy"] as const).map(c => (
+           <button 
+             key={c}
+             onClick={() => setCondition(c)} 
+             className={`p-3 rounded-xl flex items-center justify-center transition-all ${condition === c ? 'bg-violet-600/30 border border-violet-500/50' : 'bg-white/5 border border-transparent'}`}
+           >
+             {c === "sunny" ? <Sun size={20} className="text-amber-500"/> : c === "cloudy" ? <Cloud size={20} className="text-gray-400"/> : <CloudRain size={20} className="text-blue-400"/>}
+           </button>
+         ))}
+       </div>
+       
+       <div className={`p-4 rounded-xl ${info.bgClass} border-l-4 ${info.borderClass}`}>
+         <div className="text-white font-bold text-sm">{info.desc}</div>
+         <div className="text-gray-400 text-xs mt-1">{info.sugg}</div>
+       </div>
+    </section>
+  );
+});
+
 const DashboardView = React.memo(({ 
   t, currentSpeed, accuracy, gpsHz, gpsVersion, calibrateGPS, 
   maxSpeed, elapsedTime, distanceCovered, splits, isActive, isLive,
@@ -5349,6 +5445,8 @@ const DashboardView = React.memo(({
       )}
     </div>
 
+
+      <WeatherCard t={t} />
 
       {/* GPS Status & Calibration Bar */}
       <div className="bg-gray-900/60 rounded-2xl p-4 border border-gray-800 flex items-center justify-between px-6 mb-4">
