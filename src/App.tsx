@@ -56,6 +56,8 @@ import {
   Volume2,
   SmartphoneNfc,
   Zap,
+  Cpu,
+  Cloud,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -611,6 +613,7 @@ interface User {
   boundDeviceId?: string;
   isBanned?: boolean;
   lastSeen?: number; // timestamp
+  createdAt?: number;
 }
 
 interface Split {
@@ -671,7 +674,8 @@ const calculateDistance = (
   p1: { lat: number; lng: number },
   p2: { lat: number; lng: number },
 ) => {
-  const R = 6371e3; // meters
+  // Radius of the Earth according to WGS84, strictly matching Google Maps spherical geometry
+  const R = 6371008.8; // meters
   const phi1 = (p1.lat * Math.PI) / 180;
   const phi2 = (p2.lat * Math.PI) / 180;
   const dPhi = ((p2.lat - p1.lat) * Math.PI) / 180;
@@ -803,7 +807,7 @@ export default function App() {
     if (view === "charts") {
       interval = window.setInterval(() => {
         setRealTimeSpeedData([...speedHistoryRef.current]);
-      }, 200); // 5Hz UI update for the chart is plenty
+      }, systemConfig.lowFX ? 500 : 200); // Throttle chart updates in Low FX mode
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -829,26 +833,35 @@ export default function App() {
     return id;
   });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const isMainOwner = ["atmin", "owner27"].includes((currentUser?.username || "").toLowerCase());
+  const isOwner = currentUser?.role === "owner" || isMainOwner;
+  const isAdminOrOwner = currentUser?.role === "admin" || isOwner;
   const [users, setUsers] = useState<User[]>(() => {
-    const defaultAdmin: User = { username: "Atmin", password: "AtminDragRace27", role: "owner" };
+    const defaultUsers: User[] = [
+      { username: "Atmin", password: "AtminDragRace27", role: "owner" },
+      { username: "owner27", password: "owner27", role: "owner" }
+    ];
     const saved = localStorage.getItem("race_users");
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as User[];
-        // Ensure the requested admin is always in the list
-        if (!parsed.some(u => (u.username || "").toLowerCase() === "atmin")) {
-          return [defaultAdmin, ...parsed];
-        }
-        return parsed;
+        // Ensure both main accounts are in the list
+        let result = [...parsed];
+        defaultUsers.forEach(du => {
+           if (!result.some(u => (u.username || "").toLowerCase() === du.username.toLowerCase())) {
+             result.push(du);
+           }
+        });
+        return result;
       } catch {
-        return [defaultAdmin];
+        return defaultUsers;
       }
     }
-    return [defaultAdmin];
+    return defaultUsers;
   });
   const [refreshTicker, setRefreshTicker] = useState(0);
   useEffect(() => {
-    if (isLoggedIn && (currentUser?.role === "admin" || currentUser?.role === "owner")) {
+    if (isLoggedIn && (isAdminOrOwner)) {
       const interval = setInterval(() => {
         setRefreshTicker(prev => prev + 1);
       }, 30000);
@@ -880,24 +893,39 @@ export default function App() {
 
   const handleBulkUserDelete = async () => {
     if (selectedUsers.length === 0) return;
-    if (!window.confirm(`Delete ${selectedUsers.length} selected users? This cannot be undone.`)) return;
-    
-    try {
-      setAdminMessage("Executing bulk delete...");
-      const batch = writeBatch(db);
-      selectedUsers.forEach(username => {
-        batch.delete(doc(db, "users", (username || "").toLowerCase()));
-      });
-      await batch.commit();
-      setSelectedUsers([]);
-      setIsBulkManaging(false);
-      setAdminMessage("Bulk delete successful");
-    } catch (err) {
-      setAdminMessage("Delete failed");
-    }
-    setTimeout(() => setAdminMessage(""), 3000);
+    requireConfirm("Delete Users", `Delete ${selectedUsers.length} selected users? This cannot be undone.`, async () => {
+      try {
+        setAdminMessage("Executing bulk delete...");
+        const batch = writeBatch(db);
+        
+        for (const username of selectedUsers) {
+          const lowerName = (username || "").trim().toLowerCase();
+          if (lowerName) {
+            // Add runs to batch
+            const runsSnap = await getDocs(collection(db, "users", lowerName, "runs"));
+            runsSnap.forEach(d => batch.delete(d.ref));
+            
+            batch.delete(doc(db, "users", lowerName));
+          }
+        }
+        
+        await batch.commit();
+        setSelectedUsers([]);
+        setIsBulkManaging(false);
+        setAdminMessage("Bulk delete successful");
+      } catch (err) {
+        setAdminMessage("Delete failed");
+      }
+      setTimeout(() => setAdminMessage(""), 3000);
+    });
   };
   const [loginError, setLoginError] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [registerForm, setRegisterForm] = useState({
+    username: "",
+    password: "",
+    confirmPassword: "",
+  });
   const [newCustomerForm, setNewCustomerForm] = useState<{
     username: string;
     password: string;
@@ -937,7 +965,8 @@ export default function App() {
     vibrationEnabled: true,
     minAccuracy: 20,
     gpsWatchdogSpeed: 5000,
-    strictGpsMode: false
+    strictGpsMode: false,
+    lowFX: false
   });
 
   // --- Remote Config Sync ---
@@ -963,15 +992,18 @@ export default function App() {
   useEffect(() => {
     if (isLoggedIn && currentUser?.username) {
       const userRef = doc(db, "users", currentUser.username.toLowerCase());
-      const unsub = onSnapshot(userRef, (doc) => {
-        if (doc.exists()) {
-          const updatedUser = doc.data() as User;
+      const unsub = onSnapshot(userRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const updatedUser = { ...docSnap.data(), username: docSnap.id || docSnap.data().username } as User;
           if (updatedUser.username?.toLowerCase() === "atmin") {
             updatedUser.role = "owner";
           }
           setCurrentUser(updatedUser);
           if (localStorage.getItem("race_logged_in") === "true") {
             localStorage.setItem("race_current_user", JSON.stringify(updatedUser));
+          }
+          if (sessionStorage.getItem("race_logged_in") === "true") {
+            sessionStorage.setItem("race_current_user", JSON.stringify(updatedUser));
           }
         }
       }, (error) => {
@@ -1039,6 +1071,24 @@ export default function App() {
     };
   }, []);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const requireConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmState({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        setConfirmState(null);
+        onConfirm();
+      }
+    });
+  };
   const [hasAgreedToSafety, setHasAgreedToSafety] = useState(() => localStorage.getItem('race_safety_agreed') === 'true');
   const wakeLockRef = useRef<any>(null);
 
@@ -1119,10 +1169,11 @@ export default function App() {
     }
   };
 
-  const handleUpdateRole = async (username: string, newRole: "admin" | "customer") => {
+  const handleUpdateRole = async (username: string, newRole: "admin" | "customer" | "owner") => {
+    if (!username) return;
     try {
-      await setDoc(doc(db, "users", username), { role: newRole }, { merge: true });
-      setAdminMessage(`User promoted to ${newRole}`);
+      await setDoc(doc(db, "users", String(username).toLowerCase()), { role: newRole }, { merge: true });
+      setAdminMessage(`Role updated to ${newRole}`);
       setTimeout(() => setAdminMessage(""), 3000);
     } catch (err) {
       console.error(err);
@@ -1131,6 +1182,7 @@ export default function App() {
   };
 
   const toggleUserBan = async (user: User) => {
+    if (!user.username) return;
     try {
       const newStatus = !user.isBanned;
       await setDoc(doc(db, "users", (user.username || "").toLowerCase()), { isBanned: newStatus }, { merge: true });
@@ -1149,38 +1201,66 @@ export default function App() {
     setTimeout(() => setAdminMessage(""), 3000);
   };
 
-  const purgeAllGlobalHistory = async () => {
-    if (!window.confirm("CRITICAL: THIS WILL DELETE EVERY SINGLE RACE LOG IN THE ENTIRE SYSTEM. Continue?")) return;
-    try {
-      setAdminMessage("Wiping system records...");
-      const snap = await getDocs(query(collectionGroup(db, "runs"), limit(500)));
-      if (snap.empty) {
-        setAdminMessage("No records found");
-      } else {
-        const batch = writeBatch(db);
-        snap.docs.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-        setAdminMessage(`GLOBAL PURGE COMPLETE (${snap.size} removed)`);
+  const deleteGlobalRun = async (usernameInput: string, runId: string) => {
+    if (!runId) return;
+    // Robust username detection if it's missing in data
+    const finalUsername = String(usernameInput || "atmin").toLowerCase();
+    
+    requireConfirm("Delete Run", `Delete this run from ${finalUsername}?`, async () => {
+      try {
+        setAdminMessage("Deleting...");
+        // Ensure the path is correct and username is lowercase to match typical Firestore ID patterns
+        const docPath = `users/${finalUsername}/runs/${runId}`;
+        console.log("Attempting deletion of:", docPath);
+        await deleteDoc(doc(db, "users", finalUsername, "runs", runId));
+        logAction("DELETE_RUN", `Deleted run ${runId} from ${finalUsername}`);
+        setAdminMessage("Run deleted");
+        
+        // Optimistically update globalRuns state to reflect deletion immediately for better UX
+        setGlobalRuns(prev => prev.filter(r => r.id !== runId));
+        
+      } catch (err) {
+        console.error("Deletion error:", err);
+        setAdminMessage("Error deleting run - check permissions");
       }
-    } catch (err) {
-      console.error(err);
-      setAdminMessage("Purge failed: " + (err as Error).message);
-    }
-    setTimeout(() => setAdminMessage(""), 3000);
+      setTimeout(() => setAdminMessage(""), 3000);
+    });
+  };
+
+  const purgeAllGlobalHistory = async () => {
+    requireConfirm("CRITICAL", "CRITICAL: THIS WILL DELETE EVERY SINGLE RACE LOG IN THE ENTIRE SYSTEM. Continue?", async () => {
+      try {
+        setAdminMessage("Wiping system records...");
+        const snap = await getDocs(query(collectionGroup(db, "runs"), limit(500)));
+        if (snap.empty) {
+          setAdminMessage("No records found");
+        } else {
+          const batch = writeBatch(db);
+          snap.docs.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+          setAdminMessage(`GLOBAL PURGE COMPLETE (${snap.size} removed)`);
+        }
+      } catch (err) {
+        console.error(err);
+        setAdminMessage("Purge failed: " + (err as Error).message);
+      }
+      setTimeout(() => setAdminMessage(""), 3000);
+    });
   };
 
   const purgeAuditLogs = async () => {
-    if (!window.confirm("Clear all system audit logs?")) return;
-    try {
-      const snap = await getDocs(collection(db, "system_logs"));
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      setAdminMessage("Audit logs cleared");
-    } catch (err) {
-      setAdminMessage("Audit purge failed");
-    }
-    setTimeout(() => setAdminMessage(""), 3000);
+    requireConfirm("Clear Logs", "Clear all system audit logs?", async () => {
+      try {
+        const snap = await getDocs(collection(db, "system_logs"));
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        setAdminMessage("Audit logs cleared");
+      } catch (err) {
+        setAdminMessage("Audit purge failed");
+      }
+      setTimeout(() => setAdminMessage(""), 3000);
+    });
   };
 
   // --- Screen Wake Lock Handler ---
@@ -1190,20 +1270,22 @@ export default function App() {
       try {
         console.log("Starting Firebase bootstrap...");
         
-        // Ensure default atmin exists in Firestore (lowercase)
-        // We use getDoc which will use cache if offline, better UX
-        const adminRef = doc(db, "users", "atmin");
-        const adminSnap = await getDoc(adminRef);
-        
-        if (!adminSnap.exists()) {
-          console.log("Seeding default admin...");
-          await setDoc(adminRef, {
-            username: "Atmin",
-            password: "AtminDragRace27",
-            role: "owner"
-          }, { merge: true });
-        } else {
-          console.log("Admin record found.");
+        // Ensure default atmin and owner27 exists in Firestore (lowercase)
+        const mainAccounts = [
+          { name: "atmin", user: "Atmin", pass: "AtminDragRace27" },
+          { name: "owner27", user: "owner27", pass: "owner27" }
+        ];
+
+        for (const acc of mainAccounts) {
+          const ref = doc(db, "users", acc.name);
+          const snap = await getDoc(ref);
+          if (!snap.exists()) {
+             await setDoc(ref, {
+               username: acc.user,
+               password: acc.pass,
+               role: "owner"
+             }, { merge: true });
+          }
         }
       } catch (error) {
         console.warn("Bootstrap minor delay/error:", error);
@@ -1217,14 +1299,9 @@ export default function App() {
       if ('wakeLock' in navigator && (isLive || isActive) && !wakeLockRef.current) {
         try {
           wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-          wakeLockRef.current.addEventListener('release', () => {
-             // Handle release
-          });
         } catch (err: any) {
-          if (err.name === 'NotAllowedError') {
-            console.warn('Wake Lock disallowed by permissions policy or user preference.');
-          } else {
-            console.error('WakeLock error:', err);
+          if (err.name !== 'NotAllowedError') {
+             console.error('WakeLock error:', err);
           }
         }
       } else if (!(isLive || isActive) && wakeLockRef.current) {
@@ -1282,29 +1359,33 @@ export default function App() {
       if (audio) {
         audio.currentTime = 0;
         audio.volume = 0.5;
-        audio.play().catch(() => {
-          // Browsers often block autoplay or rapid triggers; ignore failures
-        });
+        audio.play().catch(() => {});
       }
     } catch (err) {
       console.warn("Audio playback failed", err);
     }
   };
 
-  // --- Firebase User List Sync (for Admin/Owner) ---
+  // --- User Sync (Admin Panel) ---
   useEffect(() => {
-    if (isLoggedIn && (currentUser?.role === "admin" || currentUser?.role === "owner")) {
+    if (isLoggedIn && isAdminOrOwner) {
       const q = query(collection(db, "users"));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const firestoreUsers: User[] = [];
         snapshot.forEach((doc) => {
-          firestoreUsers.push(doc.data() as User);
+          const userObj = doc.data() as User;
+          userObj.username = userObj.username || doc.id;
+          firestoreUsers.push(userObj);
         });
+        
+        if (!firestoreUsers.some(u => (u.username || "").toLowerCase() === "atmin")) {
+          firestoreUsers.unshift({ username: "Atmin", password: "AtminDragRace27", role: "owner" });
+        }
         setUsers(firestoreUsers);
       });
       return () => unsubscribe();
     }
-  }, [isLoggedIn, currentUser?.role]);
+  }, [isLoggedIn, isAdminOrOwner]);
 
   // --- Firebase History Sync ---
   useEffect(() => {
@@ -1316,17 +1397,13 @@ export default function App() {
         snapshot.forEach((doc) => {
           firestoreHistory.push({ ...(doc.data() as any), id: doc.id } as RaceRun);
         });
-        // Sort by date descending
         firestoreHistory.sort((a, b) => b.date - a.date);
-        
         setHistory(firestoreHistory);
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, `users/${currentUser?.username?.toLowerCase()}/runs`);
       });
       return () => unsubscribe();
     } else if (!isLoggedIn) {
-       // Show local history when logged out, or empty it?
-       // Let's load the local one
        const saved = localStorage.getItem("race_history");
        try {
          setHistory(saved ? JSON.parse(saved) : []);
@@ -1336,17 +1413,27 @@ export default function App() {
     }
   }, [isLoggedIn, currentUser?.username]);
 
-  // --- Global History Sync (Owner/Admin) ---
+  // --- Global History Sync (Open for Cloud System Record) ---
   useEffect(() => {
-    if (isLoggedIn && (currentUser?.role === "admin" || currentUser?.role === "owner")) {
+    if (isLoggedIn) {
       const q = query(collectionGroup(db, "runs"), orderBy("date", "desc"), limit(100));
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const fires = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+        const fires = snapshot.docs.map(d => {
+          const data = d.data() as any;
+          const extractedUsername = d.ref.parent.parent?.id || "unknown";
+          return { 
+            ...data, 
+            id: d.id, 
+            username: data.username || extractedUsername 
+          };
+        });
         setGlobalRuns(fires);
+      }, (err) => {
+         console.error("Global leaderboard error:", err);
       });
       return () => unsubscribe();
     }
-  }, [isLoggedIn, currentUser?.role]);
+  }, [isLoggedIn]);
 
   // Initial Boot session recovery
   useEffect(() => {
@@ -1357,88 +1444,129 @@ export default function App() {
       const sessionUserStr = sessionStorage.getItem("race_current_user");
 
       let userToRestore = null;
-
-      if (localRecovered && localUserStr) {
-        userToRestore = JSON.parse(localUserStr);
-      } else if (sessionRecovered && sessionUserStr) {
-        userToRestore = JSON.parse(sessionUserStr);
-      }
+      if (localRecovered && localUserStr) userToRestore = JSON.parse(localUserStr);
+      else if (sessionRecovered && sessionUserStr) userToRestore = JSON.parse(sessionUserStr);
 
       if (userToRestore) {
-        // Fallback for hardcoded owner logic if role is missing/corrupted
-        if (userToRestore.username?.toLowerCase() === "atmin") {
-          userToRestore.role = "owner";
-        }
+        if (["atmin", "owner27"].includes(userToRestore.username?.toLowerCase() || "")) userToRestore.role = "owner";
         setCurrentUser(userToRestore);
         setIsLoggedIn(true);
-        saveAuthToStorage(userToRestore, localRecovered); // Re-assert persistence
+        saveAuthToStorage(userToRestore, localRecovered);
       }
     } catch (err) {
       console.error("Failed to recover session:", err);
-      // Failsafe clear if corrupted
-      localStorage.removeItem("race_logged_in");
-      localStorage.removeItem("race_current_user");
     }
   }, []);
 
   useEffect(() => {
     if (splits.some((s, idx) => s.time && !splitsRef.current[idx]?.time)) {
-      triggerVibrate(50); // Short buzz on split achievement
+      triggerVibrate(50); 
     }
   }, [splits]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const t = TRANSLATIONS[lang];
-    
-    // Normalize username for case-insensitivity in check but use original for fetch?
-    // Actually common practice is to keep it consistent.
     const inputUsername = (loginForm.username || "").trim().toLowerCase();
+    const inputPassword = loginForm.password || "";
+
+    if (!inputUsername) {
+      setLoginError(t.nameRequired);
+      return;
+    }
+
+    if (inputPassword.length < 4) {
+      setLoginError(t.passRequired);
+      return;
+    }
 
     try {
-      setLoginError(""); // Clear old errors
+      setLoginError("");
       const userDoc = await getDoc(doc(db, "users", inputUsername));
       
       if (!userDoc.exists()) {
-        const localUser = users.find(u => (u.username || "").toLowerCase() === inputUsername && u.password === loginForm.password);
+        const localUser = users.find(u => (u.username || "").toLowerCase() === inputUsername && u.password === inputPassword);
         if (localUser) {
-           try {
-             const userToSave = { ...localUser, username: inputUsername };
-             await setDoc(doc(db, "users", inputUsername), userToSave);
-             await proceedWithLogin(userToSave);
-           } catch (migrateErr: any) {
-             console.error("Migration error:", migrateErr);
-             // If migration fails but local exists, we should still allow login but warn or proceed
-             await proceedWithLogin({ ...localUser, username: inputUsername });
+           const userToSave: User = { 
+             username: inputUsername, 
+             password: inputPassword,
+             role: localUser.role || (["atmin", "owner27"].includes(inputUsername) ? "owner" : "customer"),
+             lastSeen: Date.now()
+           };
+           if (inputUsername === "atmin") {
+              userToSave.role = "owner";
+              userToSave.password = "AtminDragRace27";
+           } else if (inputUsername === "owner27") {
+              userToSave.role = "owner";
+              userToSave.password = "owner27";
            }
+           await setDoc(doc(db, "users", inputUsername), userToSave);
+           await proceedWithLogin(userToSave);
         } else {
           setLoginError(t.invalidCredentials);
         }
         return;
       }
 
-      const user = userDoc.data() as User;
-      if (user.password !== loginForm.password) {
+      const cloudUser = { ...userDoc.data(), username: userDoc.id } as User;
+      if (cloudUser.password !== inputPassword) {
         playSound("error");
         setLoginError(t.invalidCredentials);
         return;
       }
-
-      if (user.username?.toLowerCase() === "atmin") {
-        user.role = "owner";
-      }
-
-      await proceedWithLogin(user);
+      if (["atmin", "owner27"].includes(cloudUser.username?.toLowerCase() || "")) cloudUser.role = "owner";
+      await proceedWithLogin(cloudUser);
     } catch (err: any) {
       playSound("error");
-      console.error("Login error details:", err);
-      if (err.message?.includes("offline")) {
-        setLoginError("Offline / Connection Error");
-      } else if (err.message?.includes("permission")) {
-        setLoginError("Database Permission Error");
-      } else {
-        setLoginError("Error: " + (err.message || "Unknown"));
+      console.error("Login error:", err);
+      setLoginError(err.message?.includes("permission") ? "Database Access Denied" : "Error: " + (err.message || "Unknown"));
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = TRANSLATIONS[lang];
+    setLoginError("");
+
+    if (!registerForm.username || !registerForm.password) {
+      setLoginError(t.nameRequired);
+      return;
+    }
+
+    if (registerForm.password.length < 4) {
+      setLoginError(t.passRequired);
+      return;
+    }
+
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setLoginError("Passwords do not match");
+      return;
+    }
+
+    const inputUsername = registerForm.username.trim();
+    const usernameKey = inputUsername.toLowerCase();
+    
+    try {
+      const userDoc = await getDoc(doc(db, "users", usernameKey));
+      if (userDoc.exists()) {
+        setLoginError("Username already exists");
+        return;
       }
+
+      const newUser: User = {
+        username: inputUsername,
+        password: registerForm.password,
+        role: "customer",
+        lastSeen: Date.now(),
+        boundDeviceId: deviceId,
+        createdAt: serverTimestamp() as any,
+      };
+
+      await setDoc(doc(db, "users", usernameKey), newUser);
+      await proceedWithLogin(newUser);
+    } catch (err: any) {
+      setLoginError("Registration failed: " + (err.message || "Unknown"));
+      console.error(err);
     }
   };
 
@@ -1456,14 +1584,16 @@ export default function App() {
       try {
         const localHistory: RaceRun[] = JSON.parse(localHistoryRaw);
         if (localHistory.length > 0) {
-          const batch = writeBatch(db);
           const usernameKey = (user.username || "").toLowerCase();
-          localHistory.forEach((run) => {
-            const runRef = doc(db, "users", usernameKey, "runs", run.id);
-            batch.set(runRef, run);
-          });
-          await batch.commit();
-          localStorage.removeItem("race_history");
+          if (usernameKey) {
+            const batch = writeBatch(db);
+            localHistory.forEach((run) => {
+              const runRef = doc(db, "users", usernameKey, "runs", run.id);
+              batch.set(runRef, run);
+            });
+            batch.commit().catch(e => console.error("Migration error:", e));
+            localStorage.removeItem("race_history");
+          }
         }
       } catch (err) {
         console.error("Migration error:", err);
@@ -1479,7 +1609,10 @@ export default function App() {
 
       if (!user.boundDeviceId) {
         const boundUser = { ...user, boundDeviceId: deviceId };
-        await setDoc(doc(db, "users", user.username), boundUser);
+        const usernameKeyForBind = (user.username || "").toLowerCase();
+        if (usernameKeyForBind) {
+          setDoc(doc(db, "users", usernameKeyForBind), boundUser).catch(e => console.error("Device bind sync error", e));
+        }
         setCurrentUser(boundUser);
         saveAuthToStorage(boundUser);
       } else {
@@ -1506,16 +1639,18 @@ export default function App() {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     playSound("click");
     
-    // Clear device binding and presence in Firestore
+    // Clear device binding and presence in Firestore (fire and forget to prevent hanging)
     if (currentUser?.username) {
       try {
         const userRef = doc(db, "users", String(currentUser.username).toLowerCase());
-        await setDoc(userRef, { boundDeviceId: deleteField(), lastSeen: 0 }, { merge: true });
+        setDoc(userRef, { boundDeviceId: deleteField(), lastSeen: 0 }, { merge: true }).catch(err => {
+          console.error("Error clearing device binding/presence on logout:", err);
+        });
       } catch (err) {
-        console.error("Error clearing device binding/presence on logout:", err);
+        console.error("Error on logout:", err);
       }
     }
 
@@ -1531,11 +1666,11 @@ export default function App() {
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     const t = TRANSLATIONS[lang];
-    if (!newCustomerForm.username) return setAdminMessage(t.nameRequired);
+    const targetUsername = (newCustomerForm.username || "").trim().toLowerCase();
+    
+    if (!targetUsername) return setAdminMessage(t.nameRequired);
     if (!newCustomerForm.password || newCustomerForm.password.length < 4)
       return setAdminMessage(t.passRequired);
-
-    const targetUsername = (newCustomerForm.username || "").trim().toLowerCase();
 
     try {
       const userDoc = await getDoc(doc(db, "users", targetUsername));
@@ -1544,12 +1679,12 @@ export default function App() {
       }
 
       // Security check: Only owner can create admin accounts
-      if (newCustomerForm.role === "admin" && currentUser?.role !== "owner") {
+      if (newCustomerForm.role === "admin" && !isOwner) {
         return setAdminMessage("Only owner can create admin accounts");
       }
 
       const userData = { ...newCustomerForm, username: targetUsername };
-      await setDoc(doc(db, "users", targetUsername), userData);
+      await setDoc(doc(db, "users", targetUsername.toLowerCase()), userData);
       setUsers((prev) => [...prev, userData]);
       setNewCustomerForm({ username: "", password: "", role: "customer" });
       setAdminMessage(t.userCreated);
@@ -1607,7 +1742,7 @@ export default function App() {
       setUsers(prev => prev.map(u => u.username === oldUsername ? newData : u));
       if (currentUser?.username === oldUsername) {
         setCurrentUser(newData);
-        localStorage.setItem("race_user", JSON.stringify(newData));
+        saveAuthToStorage(newData);
       }
 
       setAdminMessage("User updated and migrated");
@@ -1623,6 +1758,12 @@ export default function App() {
     e.preventDefault();
     if (!userToEdit) return;
 
+    if (!editForm.username || editForm.username.trim() === "") {
+      setAdminMessage("Username cannot be empty");
+      setTimeout(() => setAdminMessage(""), 3000);
+      return;
+    }
+
     if (editForm.username !== userToEdit.username) {
       await handleRenameUser(userToEdit.username, editForm);
     } else {
@@ -1633,7 +1774,7 @@ export default function App() {
         setUsers(prev => prev.map(u => u.username === userToEdit.username ? editForm : u));
         if (currentUser?.username === userToEdit.username) {
           setCurrentUser(editForm);
-          localStorage.setItem("race_user", JSON.stringify(editForm));
+          saveAuthToStorage(editForm);
         }
         setAdminMessage("User updated");
         setUserToEdit(null);
@@ -1650,11 +1791,11 @@ export default function App() {
     // Security check: Only owner can delete admins or other owners
     const targetUser = users.find(u => (u.username || "").toLowerCase() === lowerName);
     
-    if (targetUser?.role === "owner" && lowerName === "atmin") return; // Primary safety
+    if (targetUser?.role === "owner" && ["atmin", "owner27"].includes(lowerName)) return; // Primary safety
     if (lowerName === (currentUser?.username || "").toLowerCase()) return; // Protect self
     
-    if (targetUser && targetUser.role === "owner" && currentUser?.role !== "owner") {
-      setAdminMessage("Only owner can delete owners");
+    if (targetUser && targetUser.role === "owner" && !isMainOwner) {
+      setAdminMessage("Only the main owner can delete owners");
       setTimeout(() => setAdminMessage(""), 3000);
       return;
     }
@@ -1665,8 +1806,9 @@ export default function App() {
   const confirmDeleteUser = async () => {
     if (userToDelete) {
       try {
+        const lowerName = String(userToDelete).toLowerCase();
         // Delete runs subcollection first
-        const runsRef = collection(db, "users", userToDelete, "runs");
+        const runsRef = collection(db, "users", lowerName, "runs");
         const runsSnapshot = await getDocs(runsRef);
         const batch = writeBatch(db);
         runsSnapshot.forEach((runDoc) => {
@@ -1674,7 +1816,7 @@ export default function App() {
         });
         
         // Delete the user document
-        batch.delete(doc(db, "users", userToDelete));
+        batch.delete(doc(db, "users", lowerName));
         
         await batch.commit();
         setUserToDelete(null);
@@ -1688,39 +1830,39 @@ export default function App() {
   };
 
   const handleMasterReset = async () => {
-    if (!window.confirm("CRITICAL: All users and history will be DELETED. The new Admin account will be created. Continue?")) return;
-    
-    try {
-      const usersSnapshot = await getDocs(collection(db, "users"));
-      for (const userDoc of usersSnapshot.docs) {
-        const username = userDoc.id;
-        // Delete runs
-        const runsSnapshot = await getDocs(collection(db, "users", username, "runs"));
-        const batch = writeBatch(db);
-        runsSnapshot.forEach(r => batch.delete(r.ref));
-        // Delete user
-        batch.delete(userDoc.ref);
-        await batch.commit();
+    requireConfirm("MASTER RESET", "CRITICAL: All users and history will be DELETED. The new Admin account will be created. Continue?", async () => {
+      try {
+        const usersSnapshot = await getDocs(collection(db, "users"));
+        for (const userDoc of usersSnapshot.docs) {
+          const username = userDoc.id;
+          // Delete runs
+          const runsSnapshot = await getDocs(collection(db, "users", username, "runs"));
+          const batch = writeBatch(db);
+          runsSnapshot.forEach(r => batch.delete(r.ref));
+          // Delete user
+          batch.delete(userDoc.ref);
+          await batch.commit();
+        }
+        
+        // Create requested Admin account
+        await setDoc(doc(db, "users", "atmin"), {
+          username: "Atmin",
+          password: "AtminDragRace27",
+          role: "owner"
+        });
+        
+        setAdminMessage("MASTER RESET COMPLETE. New Admin created.");
+      } catch (err) {
+        console.error("Master reset error:", err);
+        setAdminMessage("Reset Error");
       }
-      
-      // Create requested Admin account
-      await setDoc(doc(db, "users", "atmin"), {
-        username: "Atmin",
-        password: "AtminDragRace27",
-        role: "owner"
-      });
-      
-      setAdminMessage("MASTER RESET COMPLETE. New Admin created.");
-    } catch (err) {
-      console.error("Master reset error:", err);
-      setAdminMessage("Reset Error");
-    }
-    setTimeout(() => setAdminMessage(""), 3000);
+      setTimeout(() => setAdminMessage(""), 3000);
+    });
   };
 
   const handleResetDevice = async (username: string) => {
     try {
-      const userRef = doc(db, "users", username);
+      const userRef = doc(db, "users", String(username).toLowerCase());
       const userDoc = await getDoc(userRef);
       if (userDoc.exists()) {
         const userData = userDoc.data() as User;
@@ -1835,9 +1977,14 @@ export default function App() {
 
   // --- SENSOR FUSION REFS ---
   const fusedSpeedRef = useRef<number>(0); 
-  const lastAccelTimestampRef = useRef<number>(Date.now());
+  const lastAccelTimestampRef = useRef<number>(performance.now());
   const accelIntegrationRef = useRef<number>(0);
   const lastGpsSpeedRef = useRef<number>(0);
+  
+  // Vector Auto-Calibration
+  const forwardVectorRef = useRef<{x: number, y: number, z: number} | null>(null);
+  const smoothedAccelRef = useRef<{x: number, y: number, z: number}>({x: 0, y: 0, z: 0});
+  const calibrationConfidenceRef = useRef<number>(0);
 
   // Save changes
   useEffect(() => {
@@ -1880,7 +2027,7 @@ export default function App() {
 
     const handleMotion = (event: DeviceMotionEvent) => {
       const accel = event.acceleration;
-      const now = Date.now();
+      const now = performance.now();
       const dt = (now - lastAccelTimestampRef.current) / 1000;
       lastAccelTimestampRef.current = now;
 
@@ -1897,7 +2044,15 @@ export default function App() {
         if (gs > peakGRef.current) {
           peakGRef.current = gs;
         }
-        
+
+        // Update smoothed Accel for auto-calibration
+        const alpha = 0.2;
+        smoothedAccelRef.current = {
+           x: smoothedAccelRef.current.x * (1 - alpha) + accel.x * alpha,
+           y: smoothedAccelRef.current.y * (1 - alpha) + accel.y * alpha,
+           z: smoothedAccelRef.current.z * (1 - alpha) + accel.z * alpha,
+        };
+
         // Smoothing and Peak tracking - THROTTLED to 10 FPS
         if (now - lastUIUpdate > 100) {
           setGForce(currentSmoothedG);
@@ -1907,19 +2062,29 @@ export default function App() {
 
         // --- REFINED SENSOR FUSION INTEGRATION ---
         if (isActiveRef.current || isLiveRef.current) {
-          // Detect trend based on GPS updates
-          if (lastGpsSpeedRef.current !== lastGpsSpeed) {
-            gpsTrend = lastGpsSpeedRef.current >= lastGpsSpeed ? 1 : -1;
-            lastGpsSpeed = lastGpsSpeedRef.current;
+          let projectedAccel = 0;
+          
+          if (forwardVectorRef.current) {
+            // Ultra-Precise True Forward Acceleration via Dot Product (ignores side-to-side and vertical bumps!)
+            projectedAccel = 
+                accel.x * forwardVectorRef.current.x + 
+                accel.y * forwardVectorRef.current.y + 
+                accel.z * forwardVectorRef.current.z;
+          } else {
+            // Fallback heuristic if not yet calibrated
+            if (lastGpsSpeedRef.current !== lastGpsSpeed) {
+              gpsTrend = lastGpsSpeedRef.current >= lastGpsSpeed ? 1 : -1;
+              lastGpsSpeed = lastGpsSpeedRef.current;
+            }
+            projectedAccel = totalAccel * gpsTrend;
           }
 
-          // We use signed acceleration to allow for braking estimation
-          // This is a heuristic: we assume the car's primary movement is aligned with the trend
-          const signedAccel = totalAccel * gpsTrend;
+          // Convert dt from milliseconds to seconds just in case it was too big. Cap it at 0.1s to prevent huge jumps.
+          const safeDt = Math.min(dt, 0.1);
 
           // Add to speed (v = u + at). 
-          const frictionDecay = 0.998; // Less decay for better persistence
-          accelIntegrationRef.current = (accelIntegrationRef.current + signedAccel * dt) * frictionDecay;
+          const frictionDecay = forwardVectorRef.current ? 0.999 : 0.98; // Very low decay if confident
+          accelIntegrationRef.current = (accelIntegrationRef.current + projectedAccel * safeDt) * frictionDecay;
           
           // Fused speed is the last known good GPS speed + the change measured by accelerometer
           const estimatedSpeed = (lastGpsSpeedRef.current + accelIntegrationRef.current) * 3.6; // convert to km/h
@@ -1945,6 +2110,7 @@ export default function App() {
           const now = Date.now();
           if (lastGpsTimestampRef.current && (now - lastGpsTimestampRef.current > systemConfig.gpsWatchdogSpeed)) {
             console.warn("GPS Stale - Restarting watch...");
+            lastGpsTimestampRef.current = now; // Give the new sensor time to breathe
             setGpsVersion(v => v + 1);
           }
         }
@@ -1956,29 +2122,51 @@ export default function App() {
     // SMOOTH SPEED UPDATER (Sensor Fusion Loop)
     let speedLoop: number | null = null;
     if (isLive) {
-      let lastSpeedUpdate = 0;
+      let lastSpeedUpdate = performance.now();
       const updateSpeedSmoothly = () => {
-        const now = Date.now();
-        // Throttle to roughly 15-20fps to prevent extreme stuttering when UI is inactive
-        if (now - lastSpeedUpdate > 66) {
-          // Only update if not already being updated by the main race timer
-          if (!isActiveRef.current && isLiveRef.current) {
-            setCurrentSpeed(fusedSpeedRef.current);
-          }
-          lastSpeedUpdate = now;
+        // Fast UI refresh - no frame limit, relying on requestAnimationFrame sync
+        if (!isActiveRef.current && isLiveRef.current) {
+          setCurrentSpeed(fusedSpeedRef.current);
         }
         speedLoop = requestAnimationFrame(updateSpeedSmoothly);
       };
       speedLoop = requestAnimationFrame(updateSpeedSmoothly);
     }
     
-    // GPS Boost: Extra polling to force high-power state on some mobile devices
-    let boostInterval: number | null = null;
-    if (isLive) {
-      boostInterval = window.setInterval(() => {
-        navigator.geolocation.getCurrentPosition(() => {}, () => {}, { enableHighAccuracy: true, maximumAge: 0 });
-      }, 5000);
-    }
+    // AGGRESSIVE GPS BOOST: Recursive polling to force high-power states indefinitely
+    // even if the device tries to throttle setInterval or watchPosition.
+    let boostTimeout: number | null = null;
+    let boostActive = true;
+    
+    // We run the poller continuously to keep the hardware warm.
+    const aggressiveGpsPoller = () => {
+      if (!boostActive) return;
+      if (isLiveRef.current || isActiveRef.current) {
+        // High frequency during active race or live mode to keep sensor polling hot
+        navigator.geolocation.getCurrentPosition(
+          () => {
+            boostTimeout = window.setTimeout(aggressiveGpsPoller, 1000);
+          }, 
+          () => {
+            boostTimeout = window.setTimeout(aggressiveGpsPoller, 2000);
+          }, 
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        );
+      } else {
+        // Keeps GPS hardware initialized in background but slightly slower
+        navigator.geolocation.getCurrentPosition(
+          () => {
+            boostTimeout = window.setTimeout(aggressiveGpsPoller, 3000);
+          }, 
+          () => {
+            boostTimeout = window.setTimeout(aggressiveGpsPoller, 5000);
+          },
+          { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+        );
+      }
+    };
+    // Start the aggressive poller immediately
+    aggressiveGpsPoller();
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -1993,14 +2181,39 @@ export default function App() {
         // Reset watchdog upon receiving valid data
         if (isLiveRef.current) startWatchdog();
 
-        // Calculate Hz with higher precision
+        // Calculate Hz and Precision Auto-Calibration
         if (lastGpsTimestampRef.current) {
           const diff = position.timestamp - lastGpsTimestampRef.current;
           if (diff > 0) {
+            const diffSeconds = diff / 1000;
             const hz = 1000 / diff;
             setGpsHz(hz);
             if (isActiveRef.current) {
               sessionHzValuesRef.current.push(hz);
+            }
+            
+            const rawSpeedKmr = (speed !== null && speed > 0.4 ? speed : 0) * 3.6;
+            
+            // Ultra-precise orientation auto-calibration using device linear acceleration
+            const dv = rawSpeedKmr - lastGpsSpeedRef.current;
+            const gpsAcceleration = dv / diffSeconds; // km/h/s
+            
+            // If GPS detects strong, sustained forward acceleration (>5 km/h/s, approx 0.14g), lock the vector!
+            if (gpsAcceleration > 5.0) {
+               const sA = smoothedAccelRef.current;
+               const mag = Math.sqrt(sA.x**2 + sA.y**2 + sA.z**2);
+               if (mag > 1.0) {
+                 forwardVectorRef.current = {
+                   x: sA.x / mag,
+                   y: sA.y / mag,
+                   z: sA.z / mag
+                 };
+                 // Gain confidence!
+                 calibrationConfidenceRef.current = Math.min(100, calibrationConfidenceRef.current + 25);
+               }
+            } else if (rawSpeedKmr < 2 && gpsAcceleration > -2 && gpsAcceleration < 2) {
+               // Stopped. Do not drop confidence heavily, maybe the phone is just resting.
+               // We keep the vector!
             }
           }
         }
@@ -2076,6 +2289,7 @@ export default function App() {
           setElapsedTime(0);
           elapsedTimeRef.current = 0;
           setDistanceCovered(0);
+          distanceCoveredRef.current = 0;
 
           const freshSplits = selectedTargetsRef.current.map((t) => ({
             ...t,
@@ -2085,24 +2299,95 @@ export default function App() {
           setSplits(freshSplits);
           splitsRef.current = freshSplits;
 
-          const startTime = Date.now();
+          const startTime = performance.now();
           if (timerRef.current) cancelAnimationFrame(timerRef.current);
           
-          let lastUpdate = 0;
-          const tick = () => {
-            const now = Date.now();
+          let lastTickTime = startTime;
+          let lastUpdate = startTime;
+          let lastFusedMs = fusedSpeedRef.current / 3.6;
+          
+          let lastFusedKmhLoop1 = fusedSpeedRef.current;
+          let lastTotalDistLoop1 = 0;
+          let lastElapsedLoop1 = 0;
+          
+          const tick = (timeRaw: number) => {
+            const now = performance.now();
             const elapsed = now - startTime;
+            const dt = (now - lastTickTime) / 1000;
+            lastTickTime = now;
             elapsedTimeRef.current = elapsed;
             
-            // Sync UI at approx 15fps to save battery and reduce rendering lag
-            if (now - lastUpdate > 66) {
-              setElapsedTime(elapsed);
-              // REVELATION: Update speed from Fused Sensor data for smooth movement
-              setCurrentSpeed(fusedSpeedRef.current);
-              lastUpdate = now;
+            // High precision 60Hz Doppler + Accel Integration
+            const currentFusedKmh = fusedSpeedRef.current;
+            const currentFusedMs = currentFusedKmh / 3.6;
+            
+            // Trapezoidal integration for higher distance accuracy
+            if (currentFusedKmh > 1.0 || lastFusedMs > 0) {
+              const avgSpeedMs = (currentFusedMs + lastFusedMs) / 2;
+              distanceCoveredRef.current += avgSpeedMs * dt;
+            }
+            lastFusedMs = currentFusedMs;
+            
+            const totalDist = distanceCoveredRef.current;
+
+            let splitReached = false;
+            const nextSplits = splitsRef.current.map((s) => {
+              if (!s.time) {
+                const isSpeedSplit = s.type === "speed";
+                const targetVal = isSpeedSplit ? s.targetSpeed : s.distance;
+                const currentVal = isSpeedSplit ? currentFusedKmh : totalDist;
+                const lastVal = isSpeedSplit ? lastFusedKmhLoop1 : lastTotalDistLoop1;
+                  
+                if (targetVal !== undefined && currentVal >= targetVal) {
+                  splitReached = true;
+                  
+                  // Sub-frame EXACT mathematical interpolation
+                  let exactTime = elapsed / 1000;
+                  let exactSpeed = currentFusedKmh;
+                  
+                  if (currentVal > lastVal && currentVal > targetVal) {
+                    const frac = (targetVal - lastVal) / (currentVal - lastVal);
+                    // Interpolate the exact split time
+                    exactTime = (lastElapsedLoop1 + frac * (elapsed - lastElapsedLoop1)) / 1000;
+                    if (!isSpeedSplit) {
+                      exactSpeed = lastFusedKmhLoop1 + frac * (currentFusedKmh - lastFusedKmhLoop1);
+                    } else {
+                      exactSpeed = targetVal;
+                    }
+                  }
+
+                  return {
+                    ...s,
+                    time: exactTime,
+                    speedAtSplit: exactSpeed,
+                  };
+                }
+              }
+              return s;
+            });
+            
+            lastFusedKmhLoop1 = currentFusedKmh;
+            lastTotalDistLoop1 = totalDist;
+            lastElapsedLoop1 = elapsed;
+            
+            if (splitReached) {
+              splitsRef.current = nextSplits;
+              setSplits(nextSplits);
             }
             
-            if (isLiveRef.current) {
+            // Auto stop check
+            const allTargetsPassed = nextSplits.every(s => s.time !== undefined);
+            if (selectedTargetsRef.current.length > 0 && allTargetsPassed) {
+               handleStop(totalDist, elapsed, nextSplits);
+               return; // break loop
+            }
+            
+            // Uncapped UI Sync at screen refresh rate
+            setElapsedTime(elapsed);
+            setDistanceCovered(totalDist);
+            setCurrentSpeed(currentFusedKmh);
+            
+            if (isLiveRef.current && isActiveRef.current) {
               timerRef.current = requestAnimationFrame(tick);
             }
           };
@@ -2110,50 +2395,7 @@ export default function App() {
         }
 
         if (isActiveRef.current && lastPointRef.current) {
-          // 5. Distance Calculation filtering
-          // Logic: Skip distance if accuracy is poor OR if speed is too low (prevents drifting while parked)
-          if (accuracy > 20 || speedKmr < 1.0) {
-            lastPointRef.current = currentPoint;
-            return;
-          }
-
-          const dist = calculateDistance(lastPointRef.current, currentPoint);
-          const totalDist = distanceCoveredRef.current + dist;
-          
-          distanceCoveredRef.current = totalDist;
-          setDistanceCovered(totalDist);
-
-          // Check and update splits
-          let splitReached = false;
-          const nextSplits = splitsRef.current.map((s) => {
-            if (!s.time) {
-              const reached = s.type === "speed" 
-                ? (s.targetSpeed !== undefined && speedKmr >= s.targetSpeed) 
-                : (s.distance !== undefined && totalDist >= s.distance);
-                
-              if (reached) {
-                splitReached = true;
-                return {
-                  ...s,
-                  time: elapsedTimeRef.current / 1000,
-                  speedAtSplit: speedKmr,
-                };
-              }
-            }
-            return s;
-          });
-
-          if (splitReached) {
-            splitsRef.current = nextSplits;
-            setSplits(nextSplits);
-          }
-
-          // Check for auto-stop condition: Stop if all selected targets are reached
-          const allTargetsPassed = nextSplits.every(s => s.time !== undefined);
-          if (selectedTargetsRef.current.length > 0 && allTargetsPassed) {
-            handleStop(totalDist, elapsedTimeRef.current, nextSplits);
-          }
-
+          // Just save track points for the map view, ignore distances
           pointsRef.current.push(currentPoint);
           lastPointRef.current = currentPoint;
         }
@@ -2169,9 +2411,10 @@ export default function App() {
     );
 
     return () => {
+      boostActive = false;
       navigator.geolocation.clearWatch(watchId);
       if (watchdog) window.clearInterval(watchdog);
-      if (boostInterval) window.clearInterval(boostInterval);
+      if (boostTimeout) window.clearTimeout(boostTimeout);
       if (speedLoop) cancelAnimationFrame(speedLoop);
     };
   }, [gpsVersion]); // ONLY depend on version (manual reset)
@@ -2226,20 +2469,93 @@ export default function App() {
     setSplits(freshSplits);
     splitsRef.current = freshSplits;
 
-    const startTime = Date.now();
+    const startTime = performance.now();
     if (timerRef.current) cancelAnimationFrame(timerRef.current);
 
-    let lastUpdate = 0;
-    const tick = () => {
-      const now = Date.now();
+    let lastTickTime = startTime;
+    let lastUpdate = startTime;
+    let lastFusedMs = fusedSpeedRef.current / 3.6;
+    
+    let lastFusedKmhLoop2 = fusedSpeedRef.current;
+    let lastTotalDistLoop2 = 0;
+    let lastElapsedLoop2 = 0;
+    
+    const tick = (timeRaw: number) => {
+      const now = performance.now();
       const elapsed = now - startTime;
+      const dt = (now - lastTickTime) / 1000;
+      lastTickTime = now;
       elapsedTimeRef.current = elapsed;
-      if (now - lastUpdate > 66) {
-        setElapsedTime(elapsed);
-        setCurrentSpeed(fusedSpeedRef.current);
-        lastUpdate = now;
+      
+      // High precision 60Hz Doppler + Accel Integration
+      const currentFusedKmh = fusedSpeedRef.current;
+      const currentFusedMs = currentFusedKmh / 3.6;
+      
+      // Trapezoidal integration for higher distance accuracy
+      if (currentFusedKmh > 1.0 || lastFusedMs > 0) {
+        const avgSpeedMs = (currentFusedMs + lastFusedMs) / 2;
+        distanceCoveredRef.current += avgSpeedMs * dt;
       }
-      if (isLiveRef.current) {
+      lastFusedMs = currentFusedMs;
+      
+      const totalDist = distanceCoveredRef.current;
+
+      let splitReached = false;
+      const nextSplits = splitsRef.current.map((s) => {
+        if (!s.time) {
+          const isSpeedSplit = s.type === "speed";
+          const targetVal = isSpeedSplit ? s.targetSpeed : s.distance;
+          const currentVal = isSpeedSplit ? currentFusedKmh : totalDist;
+          const lastVal = isSpeedSplit ? lastFusedKmhLoop2 : lastTotalDistLoop2;
+            
+          if (targetVal !== undefined && currentVal >= targetVal) {
+            splitReached = true;
+            
+            let exactTime = elapsed / 1000;
+            let exactSpeed = currentFusedKmh;
+            
+            if (currentVal > lastVal && currentVal > targetVal) {
+              const frac = (targetVal - lastVal) / (currentVal - lastVal);
+              exactTime = (lastElapsedLoop2 + frac * (elapsed - lastElapsedLoop2)) / 1000;
+              if (!isSpeedSplit) {
+                exactSpeed = lastFusedKmhLoop2 + frac * (currentFusedKmh - lastFusedKmhLoop2);
+              } else {
+                exactSpeed = targetVal;
+              }
+            }
+
+            return {
+              ...s,
+              time: exactTime,
+              speedAtSplit: exactSpeed,
+            };
+          }
+        }
+        return s;
+      });
+      
+      lastFusedKmhLoop2 = currentFusedKmh;
+      lastTotalDistLoop2 = totalDist;
+      lastElapsedLoop2 = elapsed;
+      
+      if (splitReached) {
+        splitsRef.current = nextSplits;
+        setSplits(nextSplits);
+      }
+      
+      // Auto stop check
+      const allTargetsPassed = nextSplits.every(s => s.time !== undefined);
+      if (selectedTargetsRef.current.length > 0 && allTargetsPassed) {
+         handleStop(totalDist, elapsed, nextSplits);
+         return; // break loop
+      }
+      
+      // Uncapped UI Sync at screen refresh rate
+      setElapsedTime(elapsed);
+      setDistanceCovered(totalDist);
+      setCurrentSpeed(currentFusedKmh);
+      
+      if (isLiveRef.current && isActiveRef.current) {
         timerRef.current = requestAnimationFrame(tick);
       }
     };
@@ -2324,27 +2640,29 @@ export default function App() {
     isActiveRef.current = false;
     setIsLive(false);
     isLiveRef.current = false;
-    setIsTouchLocked(false); // Unlock on stop
+    setIsTouchLocked(false);
     playSound("click");
   };
 
   const deleteHistory = async (id: string) => {
     playSound("click");
-    if (isLoggedIn && currentUser?.username) {
-      const usernameKey = currentUser.username.toLowerCase();
-      try {
-        await deleteDoc(doc(db, "users", usernameKey, "runs", id));
-      } catch (e) {
-        handleFirestoreError(e, OperationType.DELETE, `users/${usernameKey}/runs/${id}`);
+    requireConfirm("Delete Run", t.deleteConfirm || "Delete this run?", async () => {
+      if (isLoggedIn && currentUser?.username) {
+        const usernameKey = currentUser.username.toLowerCase();
+        try {
+          await deleteDoc(doc(db, "users", usernameKey, "runs", id));
+        } catch (e) {
+          handleFirestoreError(e, OperationType.DELETE, `users/${usernameKey}/runs/${id}`);
+        }
+      } else {
+        setHistory((prev) => prev.filter((h) => h.id !== id));
       }
-    } else {
-      setHistory((prev) => prev.filter((h) => h.id !== id));
-    }
+    });
   };
 
   const clearHistory = async () => {
     playSound("click");
-    if (window.confirm(t.deleteConfirm)) {
+    requireConfirm("Clear History", t.deleteConfirm || "Are you sure?", async () => {
       playSound("error");
       if (isLoggedIn && currentUser?.username) {
         const usernameKey = currentUser.username.toLowerCase();
@@ -2362,18 +2680,27 @@ export default function App() {
       } else {
         setHistory([]);
       }
-    }
+    });
   };
 
+  const blurClass = systemConfig.lowFX ? "" : "backdrop-blur-md";
+  const blurXlClass = systemConfig.lowFX ? "" : "backdrop-blur-xl";
+  const blurSmClass = systemConfig.lowFX ? "" : "backdrop-blur-sm";
+  const blurLgClass = systemConfig.lowFX ? "" : "backdrop-blur-lg";
+
   return (
-    <div className="min-h-screen bg-[linear-gradient(to_bottom_right,#000000,#0f0c29,#302b63,#000000)] text-gray-100 font-sans selection:bg-violet-500/30 overflow-x-hidden relative">
+    <div className={`min-h-screen bg-[linear-gradient(to_bottom_right,#000000,#0f0c29,#302b63,#000000)] text-gray-100 font-sans selection:bg-violet-500/30 overflow-x-hidden relative ${systemConfig.lowFX ? 'low-fx-active' : ''}`}>
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-violet-600/20 blur-[120px]" />
-        <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[60vw] rounded-full bg-cyan-600/10 blur-[120px]" />
-        <div className="absolute bottom-[-10%] left-[20%] w-[60vw] h-[50vw] rounded-full bg-fuchsia-600/10 blur-[120px]" />
+        {!systemConfig.lowFX && (
+          <>
+            <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-violet-600/20 blur-[120px]" />
+            <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[60vw] rounded-full bg-cyan-600/10 blur-[120px]" />
+            <div className="absolute bottom-[-10%] left-[20%] w-[60vw] h-[50vw] rounded-full bg-fuchsia-600/10 blur-[120px]" />
+          </>
+        )}
       </div>
       <AnimatePresence>
-        {broadcastMessage && broadcastMessage !== dismissedBroadcast && currentUser?.role !== "owner" && (
+        {broadcastMessage && broadcastMessage !== dismissedBroadcast && !isOwner && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6"
@@ -2418,7 +2745,7 @@ export default function App() {
             <ShieldAlert className="w-3 h-3" /> Offline Mode - Some features may be limited
           </motion.div>
         )}
-        {maintenanceMode && currentUser?.role !== "owner" && (
+        {maintenanceMode && !isOwner && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-8 text-center"
@@ -2478,7 +2805,7 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Background Decor */}
+
       <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-20 z-0">
         <div className="absolute top-[-5%] left-[-5%] w-[30%] h-[30%] bg-violet-600/40 blur-[80px] rounded-full" />
         <div className="absolute bottom-[-5%] right-[-5%] w-[30%] h-[30%] bg-blue-600/40 blur-[80px] rounded-full" />
@@ -2492,124 +2819,149 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
+            className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6"
           >
-            <div className="w-full bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+            <div className={`w-full max-w-sm bg-gray-900/60 ${blurXlClass} border border-gray-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden`}>
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
 
-              <div className="flex flex-col items-center mb-10">
-                <div className="w-20 h-20 bg-violet-500/10 rounded-full flex items-center justify-center mb-4 border border-violet-500/20">
-                  <Flag className="w-10 h-10 text-violet-500 -rotate-12 fill-violet-500/20" />
+              <div className="flex flex-col items-center mb-8">
+                <div className="w-16 h-16 bg-violet-500/10 rounded-full flex items-center justify-center mb-4 border border-violet-500/20">
+                  <Flag className="w-8 h-8 text-violet-500 -rotate-12 fill-violet-500/20" />
                 </div>
-                <h1 className="text-3xl font-black italic tracking-tighter uppercase text-white leading-none">
+                <h1 className="text-2xl font-black italic tracking-tighter uppercase text-white leading-none">
                   DRAG <span className="text-violet-500">RACE</span>
                 </h1>
-                <p className="text-[10px] text-gray-500 font-mono tracking-[0.3em] mt-2 uppercase">
-                  Elite Performance Tracker
-                </p>
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
-                    {t.username}
-                  </label>
-                  <div className="relative">
-                    <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+              <div className="flex bg-gray-950/80 p-1 rounded-2xl mb-8 border border-gray-800">
+                <button 
+                  onClick={() => { setAuthMode("login"); setLoginError(""); }}
+                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${authMode === "login" ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-gray-600 hover:text-gray-400"}`}
+                >Login</button>
+                <button 
+                  onClick={() => { setAuthMode("register"); setLoginError(""); }}
+                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${authMode === "register" ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-gray-600 hover:text-gray-400"}`}
+                >Register</button>
+              </div>
+
+              {loginError && (
+                <div className="mb-6 bg-red-500/10 border border-red-500/30 text-red-500 text-[10px] font-black uppercase text-center py-3 rounded-xl animate-shake">
+                  {loginError}
+                </div>
+              )}
+
+              {authMode === "login" ? (
+                <form onSubmit={handleLogin} className="space-y-5">
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+                      <input
+                        type="text"
+                        value={loginForm.username}
+                        onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
+                        placeholder={t.username.toUpperCase()}
+                        className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:border-violet-500/50"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+                      <input
+                        type="password"
+                        value={loginForm.password}
+                        onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
+                        placeholder={t.password.toUpperCase()}
+                        className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:border-violet-500/50"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 px-1 mb-2">
+                    <div
+                      onClick={() =>
+                        setLoginForm((prev) => ({
+                          ...prev,
+                          rememberMe: !prev.rememberMe,
+                        }))
+                      }
+                      className="flex items-center gap-2 group cursor-pointer"
+                    >
+                      <div
+                        className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                          loginForm.rememberMe
+                            ? "bg-violet-600 border-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.3)]"
+                            : "bg-gray-950 border-gray-800 group-hover:border-gray-700"
+                        }`}
+                      >
+                        {loginForm.rememberMe && (
+                          <CheckSquare className="w-2.5 h-2.5 text-white" />
+                        )}
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                        {t.rememberMe}
+                      </span>
+                    </div>
+                  </div>
+
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    type="submit"
+                    className="w-full py-5 bg-violet-600 rounded-2xl text-[10px] font-black uppercase tracking-widest italic shadow-xl shadow-violet-600/20 text-white mt-4 border border-violet-400/30"
+                  >
+                    {t.signIn}
+                    <ChevronRight className="w-4 h-4 inline ml-1" />
+                  </motion.button>
+                  
+                  {!isLoggedIn && loginError && loginForm.username.toLowerCase() === "atmin" && (
+                    <p className="text-[9px] text-violet-400 font-bold italic text-center animate-pulse mt-4">
+                      Hint: AtminDragRace27
+                    </p>
+                  )}
+                  {!isLoggedIn && loginError && loginForm.username.toLowerCase() === "owner27" && (
+                    <p className="text-[9px] text-violet-400 font-bold italic text-center animate-pulse mt-4">
+                      Hint: owner27
+                    </p>
+                  )}
+                </form>
+              ) : (
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div className="space-y-2">
                     <input
                       type="text"
-                      value={loginForm.username}
-                      onChange={(e) =>
-                        setLoginForm((prev) => ({
-                          ...prev,
-                          username: e.target.value,
-                        }))
-                      }
-                      placeholder={t.username}
-                      className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:border-violet-500/50 focus:ring-4 focus:ring-violet-500/10 transition-all placeholder:text-gray-700"
+                      value={registerForm.username}
+                      onChange={(e) => setRegisterForm({...registerForm, username: e.target.value})}
+                      placeholder="NEW USERNAME"
+                      className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold focus:border-violet-500/50"
                     />
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
-                    {t.password}
-                  </label>
-                  <div className="relative">
-                    <Settings className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+                  <div className="space-y-2">
                     <input
                       type="password"
-                      value={loginForm.password}
-                      onChange={(e) =>
-                        setLoginForm((prev) => ({
-                          ...prev,
-                          password: e.target.value,
-                        }))
-                      }
-                      placeholder={t.password}
-                      className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:border-violet-500/50 focus:ring-4 focus:ring-violet-500/10 transition-all placeholder:text-gray-700"
+                      value={registerForm.password}
+                      onChange={(e) => setRegisterForm({...registerForm, password: e.target.value})}
+                      placeholder="NEW PASSWORD"
+                      className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold focus:border-violet-500/50"
                     />
                   </div>
-                </div>
-
-                {loginError && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black py-3 rounded-xl text-center uppercase tracking-wider"
-                  >
-                    {loginError}
-                  </motion.div>
-                )}
-
-                <div className="flex items-center gap-3 px-1 mb-2">
-                  <div
-                    onClick={() =>
-                      setLoginForm((prev) => ({
-                        ...prev,
-                        rememberMe: !prev.rememberMe,
-                      }))
-                    }
-                    className="flex items-center gap-2 group cursor-pointer"
-                  >
-                    <div
-                      className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
-                        loginForm.rememberMe
-                          ? "bg-violet-600 border-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.3)]"
-                          : "bg-gray-950 border-gray-800 group-hover:border-gray-700"
-                      }`}
-                    >
-                      {loginForm.rememberMe && (
-                        <CheckSquare className="w-3 h-3 text-white" />
-                      )}
-                    </div>
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                      {t.rememberMe}
-                    </span>
+                  <div className="space-y-2">
+                    <input
+                      type="password"
+                      value={registerForm.confirmPassword}
+                      onChange={(e) => setRegisterForm({...registerForm, confirmPassword: e.target.value})}
+                      placeholder="CONFIRM PASSWORD"
+                      className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold focus:border-violet-500/50"
+                    />
                   </div>
-                </div>
-
-                <div className="bg-gray-900/40 rounded-xl p-3 border border-gray-800 flex items-start gap-3">
-                   <ShieldCheck className="w-3.5 h-3.5 text-green-500 mt-0.5" />
-                   <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest leading-relaxed">
-                     Privacy focused authentication. credentials are stored only on this device and are never saved in the online database for session persistence.
-                   </p>
-                </div>
-
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  type="submit"
-                  className="w-full bg-violet-600 hover:bg-violet-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-violet-600/20 transition-all text-xs uppercase tracking-[0.2em] italic flex items-center justify-center gap-2 mt-4"
-                >
-                  {t.signIn}
-                  <ChevronRight className="w-4 h-4" />
-                </motion.button>
-              </form>
-
-              <div className="mt-8 text-center">
-                <p className="text-[9px] text-gray-600 uppercase tracking-widest font-medium italic">
-                  Powered by L.A Tech PRO Series
-                </p>
-              </div>
+                  <button
+                    type="submit"
+                    className="w-full py-5 bg-violet-600 rounded-2xl text-[10px] font-black uppercase tracking-widest italic shadow-xl shadow-violet-600/20 text-white mt-4 border border-violet-400/30"
+                  >
+                    Create Account
+                  </button>
+                </form>
+              )}
             </div>
           </motion.main>
         ) : (
@@ -2864,6 +3216,9 @@ export default function App() {
                   formatTime={formatTime}
                   formatDistance={formatDistance}
                   navigateView={navigateView}
+                  systemConfig={systemConfig}
+                  fastestRun={fastestRun}
+                  systemStats={systemStats}
                 />
               )}
 
@@ -3059,7 +3414,7 @@ export default function App() {
                                     className="overflow-hidden"
                                   >
                                     <div className="border-t border-gray-800 pt-4 mt-2">
-                                      <p className="text-[9px] uppercase font-black text-gray-500 mb-3 tracking-[0.2em]">
+                                      <p className="text-[9px] uppercase font-black text-gray-500 mb-3 tracking-[0.2em] text-center">
                                         {t.splitsTargets.toUpperCase()}
                                       </p>
                                       <div className="bg-gray-950/40 rounded-2xl overflow-hidden border border-gray-800/50">
@@ -3135,10 +3490,11 @@ export default function App() {
                     gForce={gForce}
                     peakG={peakG}
                     t={t}
+                    lowFX={systemConfig.lowFX}
                   />
 
                   {/* COMPARE RECORDS MANAGER */}
-                  <div className="bg-gray-900/60 rounded-3xl border border-violet-500/20 p-1 backdrop-blur-md overflow-hidden shadow-xl shadow-violet-500/5">
+                  <div className={`bg-gray-900/60 rounded-3xl border border-violet-500/20 p-1 ${blurClass} overflow-hidden shadow-xl shadow-violet-500/5`}>
                     <div className="bg-violet-600/20 text-violet-400 px-4 py-2 flex items-center justify-between mb-1 rounded-t-2xl">
                       <span className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
                         <LayoutGrid className="w-4 h-4 text-violet-500" />{" "}
@@ -3156,6 +3512,7 @@ export default function App() {
                       history={history}
                       selectedRuns={selectedRuns}
                       setSelectedRuns={setSelectedRuns}
+                      lowFX={systemConfig.lowFX}
                     />
 
                     <div className="px-4 py-2 flex justify-between items-center text-[7px] font-black text-violet-500/40 uppercase tracking-[0.2em]">
@@ -3167,6 +3524,7 @@ export default function App() {
                   <CompareChart 
                     history={history}
                     selectedRuns={selectedRuns}
+                    lowFX={systemConfig.lowFX}
                   />
                 </motion.div>
               )}
@@ -3369,20 +3727,20 @@ export default function App() {
                     </div>
                   </section>
 
-                  {(currentUser?.role === "admin" || currentUser?.role === "owner") && (
+                  {(isAdminOrOwner) && (
                     <section className="bg-gray-900/60 rounded-3xl border border-violet-500/30 p-6 shadow-xl shadow-violet-500/5">
                       <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <UserPlus className="w-4 h-4" /> {t.adminPanel}
                         </div>
-                        {(currentUser?.role === "admin" || currentUser?.role === "owner") && (
+                        {(isAdminOrOwner) && (
                           <span className="text-[8px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded border border-amber-500/20 font-black animate-pulse">
                             ADMIN PRIVILEGES ACTIVE
                           </span>
                         )}
                       </h3>
 
-                      {(currentUser?.role === "admin" || currentUser?.role === "owner") && (
+                      {(isAdminOrOwner) && (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                           <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
                             <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Total Users</p>
@@ -3409,7 +3767,7 @@ export default function App() {
                                  {fastestRun ? (
                                    <>
                                      <p className="text-3xl font-black text-white leading-none mb-1">{(fastestRun.totalTime / 1000).toFixed(3)}s</p>
-                                     <p className="text-[10px] text-gray-500 font-black uppercase">Race {fastestRun.totalDistance}m by {fastestRun.username}</p>
+                                     <p className="text-[10px] text-gray-500 font-black uppercase">Race {Math.round(fastestRun.totalDistance)}m by {fastestRun.username}</p>
                                    </>
                                  ) : <p className="text-sm text-gray-600">No logs yet</p>}
                                </div>
@@ -3421,7 +3779,7 @@ export default function App() {
                         </div>
                       )}
 
-                      {(currentUser?.role === "admin" || currentUser?.role === "owner") && (
+                      {(isOwner) && (
                         <div className="bg-gray-950/40 rounded-2xl border border-amber-500/20 p-4 mb-8 space-y-4">
                           <div className="flex items-center gap-2 mb-2">
                             <ShieldAlert className="w-4 h-4 text-amber-500" />
@@ -3449,6 +3807,23 @@ export default function App() {
                                 onBlur={(e) => updateSystemName(e.target.value)}
                                 className="w-full bg-black border border-gray-800 rounded-xl p-2 text-[10px] font-bold text-violet-400"
                               />
+                            </div>
+                            <div className="col-span-2 space-y-2">
+                              <label className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Performance (For Low-end devices)</label>
+                              <button 
+                                onClick={() => {
+                                  const newVal = !systemConfig.lowFX;
+                                  updateSystemConfigProperty("lowFX", newVal);
+                                  setAdminMessage(`Low FX: ${newVal ? 'ENABLED' : 'DISABLED'}`);
+                                  setTimeout(() => setAdminMessage(""), 3000);
+                                }}
+                                className={`w-full py-2.5 rounded-xl border flex items-center justify-center gap-3 transition-all ${systemConfig.lowFX ? 'bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-500/20' : 'bg-gray-900 border-gray-800 text-gray-400'}`}
+                              >
+                                <Cpu className={`w-3.5 h-3.5 ${systemConfig.lowFX ? 'animate-pulse' : ''}`} />
+                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                  {systemConfig.lowFX ? 'LOW FX MODE: ON (STABLE)' : 'LOW FX MODE: OFF (HIGH)'}
+                                </span>
+                              </button>
                             </div>
                           </div>
                           
@@ -3544,6 +3919,33 @@ export default function App() {
                           </div>
 
                           <div className="border-t border-gray-800 pt-4">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-2 mb-4">
+                              <Trophy className="w-3 h-3 text-red-500" /> Global Run Moderation
+                            </h4>
+                            <div className="space-y-1.5 max-h-48 overflow-auto pr-2 custom-scrollbar mb-8">
+                              {globalRuns.map((run) => (
+                                <div key={run.id} className="bg-black/40 p-3 rounded-lg border border-gray-900 flex justify-between items-center gap-3">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <p className="text-[10px] font-black text-violet-400 uppercase tracking-tighter leading-none">{run.username}</p>
+                                      <span className="text-[8px] text-gray-500 font-bold bg-gray-900 rounded px-1 py-0.5">{run.totalDistance}m</span>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 font-mono tracking-tight">{(run.totalTime / 1000).toFixed(3)}s | {(run.maxSpeed || 0).toFixed(1)} km/h peak</p>
+                                  </div>
+                                  <button
+                                    onClick={() => deleteGlobalRun(run.username, run.id)}
+                                    className="p-2 rounded-lg bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white transition-all"
+                                    title="Delete Run"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                              {globalRuns.length === 0 && <p className="text-[10px] text-gray-600">No runs found</p>}
+                            </div>
+                          </div>
+
+                          <div className="border-t border-gray-800 pt-4">
                             <div className="flex items-center justify-between mb-2">
                               <label className="text-[9px] text-gray-500 font-black uppercase flex items-center gap-2">
                                 <ListRestart className="w-3 h-3" /> Global Audit Logs
@@ -3612,7 +4014,7 @@ export default function App() {
                         </div>
 
                         <div className="flex gap-2 p-1 bg-gray-950 rounded-xl border border-gray-800">
-                          {(currentUser?.role === "admin" || currentUser?.role === "owner" ? ["customer", "admin"] : ["customer"]).map((r) => (
+                          {(isOwner ? ["customer", "admin", "owner"] : isAdminOrOwner ? ["customer", "admin"] : ["customer"]).map((r) => (
                             <button
                               key={r}
                               type="button"
@@ -3695,7 +4097,7 @@ export default function App() {
                             <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">
                               {t.userList}
                             </p>
-                            {(currentUser?.role === "admin" || currentUser?.role === "owner") && (
+                            {(isAdminOrOwner) && (
                               <div className="flex gap-2">
                                 {isBulkManaging && (
                                   <button 
@@ -3791,7 +4193,7 @@ export default function App() {
                                         {Math.floor((Date.now() - u.lastSeen) / 60000)}m ago
                                       </span>
                                     ) : null}
-                                  {currentUser?.role === "owner" && u.role !== "owner" && (
+                                  {(isOwner && u.role !== "owner" || isMainOwner) && (
                                      <div className="flex gap-1 ml-auto">
                                         {u.role === "customer" ? (
                                           <button 
@@ -3799,13 +4201,20 @@ export default function App() {
                                             className="p-1 rounded-md bg-violet-600/10 text-violet-500 hover:bg-violet-600 hover:text-white transition-all"
                                             title="Promote to Admin"
                                           ><ArrowUpCircle className="w-3 h-3" /></button>
-                                        ) : (
-                                          <button 
-                                            onClick={() => handleUpdateRole(u.username, "customer")}
-                                            className="p-1 rounded-md bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-white transition-all"
-                                            title="Demote to Member"
-                                          ><ArrowDownCircle className="w-3 h-3" /></button>
-                                        )}
+                                        ) : u.role === "admin" ? (
+                                          <>
+                                            <button 
+                                              onClick={() => handleUpdateRole(u.username, "customer")}
+                                              className="p-1 rounded-md bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-white transition-all mr-1"
+                                              title="Demote to Member"
+                                            ><ArrowDownCircle className="w-3 h-3" /></button>
+                                            <button 
+                                              onClick={() => handleUpdateRole(u.username, "owner")}
+                                              className="p-1 rounded-md bg-amber-600/20 text-amber-500 hover:bg-amber-600 hover:text-white transition-all"
+                                              title="Promote to Owner"
+                                            ><ShieldAlert className="w-3 h-3" /></button>
+                                          </>
+                                        ) : null}
                                      </div>
                                   )}
                                 </div>
@@ -3823,9 +4232,9 @@ export default function App() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2 ml-4">
-                                {(currentUser?.role === "owner" || currentUser?.role === "admin" || (u.username !== currentUser?.username && u.role === "customer")) && (
+                                {(isAdminOrOwner || (u.username !== currentUser?.username && u.role === "customer")) && (
                                   <div className="flex gap-1 items-center">
-                                    {(currentUser?.role === "owner" || currentUser?.role === "admin") && u.role !== "owner" && (
+                                    {(isAdminOrOwner) && (u.role !== "owner" || isMainOwner) && (
                                       <button
                                         onClick={() => toggleUserBan(u)}
                                         title={u.isBanned ? "Unban User" : "Ban User"}
@@ -3834,7 +4243,7 @@ export default function App() {
                                         <ShieldAlert className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {(currentUser?.role === "admin" || currentUser?.role === "owner") && u.role !== "owner" && (
+                                    {(isAdminOrOwner) && (u.role !== "owner" || isMainOwner) && (
                                       <button
                                         onClick={() => {
                                           setUserToEdit(u);
@@ -3846,7 +4255,7 @@ export default function App() {
                                         <Edit2 className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {(currentUser?.role === "admin" || currentUser?.role === "owner") && u.boundDeviceId && u.role !== "owner" && (
+                                    {(isAdminOrOwner) && u.boundDeviceId && (u.role !== "owner" || isMainOwner) && (
                                       <button
                                         onClick={() => handleResetDevice(u.username)}
                                         title="Force Unbind Device"
@@ -3855,10 +4264,10 @@ export default function App() {
                                         <Smartphone className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {(currentUser?.role === "admin" || currentUser?.role === "owner") && u.role !== "owner" && (
+                                    {(isAdminOrOwner) && (u.role !== "owner" || isMainOwner) && (
                                       <button
                                         onClick={async () => {
-                                          if (window.confirm(`Wipe all history for ${u.username}?`)) {
+                                          requireConfirm("Wipe History", `Wipe all history for ${u.username}?`, async () => {
                                             try {
                                               setAdminMessage(`Cleaning ${u.username}...`);
                                               // Use collectionGroup search to find runs belonging to this user regardless of path casing
@@ -3874,7 +4283,7 @@ export default function App() {
                                               setAdminMessage("Error wiping history");
                                               setTimeout(() => setAdminMessage(""), 3000);
                                             }
-                                          }
+                                          });
                                         }}
                                         title="Wipe History"
                                         className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all border border-red-500/20 active:scale-95"
@@ -3882,7 +4291,7 @@ export default function App() {
                                         <Database className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {(u.username || "").toLowerCase() !== "atmin" && u.username !== currentUser?.username && (
+                                    {!["atmin", "owner27"].includes((u.username || "").toLowerCase()) && u.username !== currentUser?.username && (isMainOwner || u.role !== "owner") && (
                                       <button
                                         onClick={() => handleDeleteUser(u.username)}
                                         title="Delete User"
@@ -3923,13 +4332,13 @@ export default function App() {
                       <button 
                         onClick={() => {
                           playSound("click");
-                          if(window.confirm("This will wipe your 'Remember Me' status and local racer name. Continue?")) {
+                          requireConfirm("Wipe Data", "This will wipe your 'Remember Me' status and local racer name. Continue?", () => {
                             playSound("error");
                             localStorage.removeItem("race_logged_in");
                             localStorage.removeItem("race_current_user");
                             localStorage.removeItem("race_local_pilot");
                             window.location.reload();
-                          }
+                          });
                         }}
                         className="w-full flex items-center justify-between p-4 bg-red-600/5 border border-red-500/20 rounded-2xl group hover:bg-red-600 transition-all text-left"
                       >
@@ -3949,6 +4358,51 @@ export default function App() {
                     <LogOut className="w-5 h-5" />
                     {t.signOut}
                   </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence mode={systemConfig.lowFX ? "wait" : "popLayout"}>
+              {confirmState?.isOpen && (
+                <motion.div
+                  initial={systemConfig.lowFX ? { opacity: 0 } : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: systemConfig.lowFX ? 0.1 : 0.3 }}
+                  className={`fixed inset-0 z-[120] flex items-center justify-center p-6 bg-black/80 ${systemConfig.lowFX ? '' : 'backdrop-blur-md'}`}
+                >
+                  <motion.div
+                    initial={systemConfig.lowFX ? { opacity: 0, y: 10 } : { scale: 0.9, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={systemConfig.lowFX ? { opacity: 0, y: 10 } : { scale: 0.9, opacity: 0, y: 20 }}
+                    transition={{ duration: systemConfig.lowFX ? 0.1 : 0.3 }}
+                    className={`bg-gray-900 border border-red-500/30 rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl shadow-red-500/10 text-center relative overflow-hidden`}
+                  >
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent" />
+                    <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+                      <Trash2 className="w-8 h-8 text-red-500" />
+                    </div>
+                    <h2 className="text-xl font-black italic text-white mb-4 tracking-tighter uppercase">
+                      {confirmState.title}
+                    </h2>
+                    <p className="text-sm text-gray-400 leading-relaxed mb-8 font-medium italic">
+                      {confirmState.message}
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setConfirmState(null)}
+                        className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-4 rounded-2xl transition-all text-xs uppercase tracking-widest italic"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => confirmState.onConfirm()}
+                        className="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-red-600/20 transition-all text-xs uppercase tracking-widest italic"
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -4088,7 +4542,7 @@ export default function App() {
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="fixed bottom-8 left-4 right-4 z-50 max-w-lg mx-auto"
             >
-              <div className="bg-black/60 backdrop-blur-xl p-4 rounded-[2rem] border border-white/5 shadow-2xl">
+              <div className={`bg-black/60 ${blurXlClass} p-4 rounded-[2rem] border border-white/5 shadow-2xl`}>
                 {!isLive ? (
                   <div className="flex flex-col gap-3">
                     <div
@@ -4302,7 +4756,17 @@ interface DashboardViewProps {
   formatTime: (ms: number) => string;
   formatDistance: (m: number) => string;
   navigateView: (newView: "welcome" | "dashboard" | "history" | "settings" | "charts") => void;
+  systemConfig: any;
+  fastestRun: any;
+  systemStats: any;
 }
+
+const getBlurClasses = (lowFX: boolean) => ({
+  blurClass: lowFX ? "" : "backdrop-blur-md",
+  blurXlClass: lowFX ? "" : "backdrop-blur-xl",
+  blurSmClass: lowFX ? "" : "backdrop-blur-sm",
+  blurLgClass: lowFX ? "" : "backdrop-blur-lg",
+});
 
 // --- Optimized Small Components ---
 
@@ -4312,203 +4776,219 @@ const LiveValue = React.memo(({
   label, 
   color = "text-white",
   size = "text-4xl",
-  icon: Icon
+  icon: Icon,
+  lowFX = false
 }: { 
   value: string | number, 
   unit?: string, 
   label: string, 
   color?: string,
   size?: string,
-  icon?: any
-}) => (
-  <div className="bg-gray-900/40 rounded-3xl p-5 border border-gray-800/50 flex flex-col items-center justify-center relative overflow-hidden group hover:border-violet-500/30 transition-colors backdrop-blur-sm">
-    <div className="absolute top-3 left-3 opacity-20 group-hover:opacity-40 transition-opacity">
-      {Icon && <Icon className="w-3 h-3" />}
-    </div>
-    <div className="text-[10px] font-mono text-gray-500 mb-1 tracking-widest uppercase">
-      {label}
-    </div>
-    <div className={`font-black italic tracking-tighter tabular-nums ${size} ${color} flex items-baseline gap-1`}>
-      {value}
-      {unit && <span className="text-xs not-italic opacity-30 font-bold uppercase">{unit}</span>}
-    </div>
-  </div>
-));
-
-const BentoCard = ({ children, className = "", title, icon: Icon }: { children: React.ReactNode, className?: string, title?: string, icon?: any }) => (
-  <div className={`bg-gray-900/40 rounded-[2rem] border border-gray-800/50 p-6 relative overflow-hidden group backdrop-blur-md ${className}`}>
-    <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-    {title && (
-      <div className="flex items-center gap-2 mb-4">
-        {Icon && <Icon className="w-3.5 h-3.5 text-violet-500/70" />}
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
-          {title}
-        </span>
+  icon?: any,
+  lowFX?: boolean
+}) => {
+  const { blurSmClass } = getBlurClasses(lowFX);
+  return (
+    <div className={`bg-gray-900/40 rounded-3xl p-5 border border-gray-800/50 flex flex-col items-center justify-center relative overflow-hidden group hover:border-violet-500/30 transition-colors ${blurSmClass}`}>
+      <div className="absolute top-3 left-3 opacity-20 group-hover:opacity-40 transition-opacity">
+        {Icon && <Icon className="w-3 h-3" />}
       </div>
-    )}
-    {children}
-  </div>
-);
+      <div className="text-[10px] font-mono text-gray-500 mb-1 tracking-widest uppercase">
+        {label}
+      </div>
+      <div className={`font-black italic tracking-tighter tabular-nums ${size} ${color} flex items-baseline gap-1`}>
+        {value}
+        {unit && <span className="text-xs not-italic opacity-30 font-bold uppercase">{unit}</span>}
+      </div>
+    </div>
+  );
+});
+
+const BentoCard = ({ children, className = "", title, icon: Icon, lowFX = false }: { children: React.ReactNode, className?: string, title?: string, icon?: any, lowFX?: boolean }) => {
+  const { blurClass } = getBlurClasses(lowFX);
+  return (
+    <div className={`bg-gray-900/40 rounded-[2rem] border border-gray-800/50 p-6 relative overflow-hidden group ${blurClass} ${className}`}>
+      <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      {title && (
+        <div className="flex items-center gap-2 mb-4">
+          {Icon && <Icon className="w-3.5 h-3.5 text-violet-500/70" />}
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+            {title}
+          </span>
+        </div>
+      )}
+      {children}
+    </div>
+  );
+};
 
 const LiveTelemetryChart = React.memo(({ 
   realTimeSpeedData, 
   currentSpeed, 
   gForce, 
   peakG, 
-  t 
+  t,
+  lowFX = false
 }: { 
   realTimeSpeedData: any[], 
   currentSpeed: number, 
   gForce: number, 
   peakG: number, 
-  t: Translations 
-}) => (
-  <div className="bg-gray-900/80 rounded-[2.5rem] border border-violet-500/20 p-6 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
-    <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(139,92,246,1)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,1)_1px,transparent_1px)] bg-[size:20px_20px]" />
+  t: Translations,
+  lowFX?: boolean
+}) => {
+  const { blurXlClass } = getBlurClasses(lowFX);
+  return (
+    <div className={`bg-gray-900/80 rounded-[2.5rem] border border-violet-500/20 p-6 ${blurXlClass} shadow-2xl relative overflow-hidden group`}>
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(139,92,246,1)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,1)_1px,transparent_1px)] bg-[size:20px_20px]" />
 
-    <div className="flex justify-between items-center mb-6 relative z-10">
-      <div className="flex items-center gap-3">
-        <div
-          className={`w-2 h-2 rounded-full ${currentSpeed > 2 ? "bg-red-500 animate-pulse shadow-[0_0_10px_red]" : "bg-gray-600"}`}
-        />
-        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-violet-400 italic">
-          Live Telemetry Monitor
-        </h3>
+      <div className="flex justify-between items-center mb-6 relative z-10">
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-2 h-2 rounded-full ${currentSpeed > 2 ? "bg-red-500 animate-pulse shadow-[0_0_10px_red]" : "bg-gray-600"}`}
+          />
+          <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-violet-400 italic">
+            Live Telemetry Monitor
+          </h3>
+        </div>
+        <div className="px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-full">
+          <span className="text-[8px] font-bold text-violet-500 uppercase flex items-center gap-1">
+            <Signal className="w-2 h-2" /> GPS-L1 LOCKED
+          </span>
+        </div>
       </div>
-      <div className="px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-full">
-        <span className="text-[8px] font-bold text-violet-500 uppercase flex items-center gap-1">
-          <Signal className="w-2 h-2" /> GPS-L1 LOCKED
-        </span>
+
+      <div className="h-48 w-full relative z-10">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={realTimeSpeedData}
+            margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
+          >
+            <defs>
+              <linearGradient
+                id="colorSpeedLive"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop
+                  offset="5%"
+                  stopColor="#8b5cf6"
+                  stopOpacity={0.3}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="#8b5cf6"
+                  stopOpacity={0}
+                />
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="#ffffff05"
+              vertical={true}
+            />
+            <XAxis dataKey="time" hide />
+            <YAxis
+              stroke="#ffffff10"
+              fontSize={8}
+              tickLine={false}
+              axisLine={false}
+              domain={[
+                0,
+                (dataMax: number) =>
+                  Math.max(
+                    100,
+                    Math.ceil(dataMax / 20) * 20 + 20,
+                  ),
+              ]}
+              tick={{
+                fill: "#444",
+                fontSize: 8,
+                fontWeight: "bold",
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="speed"
+              stroke="#8b5cf6"
+              strokeWidth={3}
+              fillOpacity={1}
+              fill="url(#colorSpeedLive)"
+              isAnimationActive={false}
+              connectNulls={true}
+            />
+            {(() => {
+              const realPoints = realTimeSpeedData.filter(
+                (p) =>
+                  p.speed !== undefined &&
+                  !p.time.startsWith("future") &&
+                  !p.time.startsWith("init"),
+              );
+              const lastPoint = realPoints[realPoints.length - 1];
+              if (!lastPoint) return null;
+              return (
+                <ReferenceDot
+                  x={lastPoint.time}
+                  y={lastPoint.speed}
+                  r={4}
+                  fill="#8b5cf6"
+                  stroke="#fff"
+                  strokeWidth={1}
+                  isFront={true}
+                />
+              );
+            })()}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mt-6">
+        <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+          <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
+            Velocity
+          </p>
+          <p className="text-xl font-black text-white italic">
+            {Math.round(currentSpeed)}{" "}
+            <span className="text-[8px] opacity-40">KPH</span>
+          </p>
+        </div>
+        <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+          <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
+            G-Force
+          </p>
+          <p className="text-xl font-black text-violet-400 italic">
+            {gForce.toFixed(2)}{" "}
+            <span className="text-[8px] opacity-40">G</span>
+          </p>
+        </div>
+        <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+          <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
+            Peak-G
+          </p>
+          <p className="text-xl font-black text-blue-400 italic">
+            {peakG.toFixed(2)}{" "}
+            <span className="text-[8px] opacity-40">MAX</span>
+          </p>
+        </div>
       </div>
     </div>
-
-    <div className="h-48 w-full relative z-10">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          data={realTimeSpeedData}
-          margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
-        >
-          <defs>
-            <linearGradient
-              id="colorSpeedLive"
-              x1="0"
-              y1="0"
-              x2="0"
-              y2="1"
-            >
-              <stop
-                offset="5%"
-                stopColor="#8b5cf6"
-                stopOpacity={0.3}
-              />
-              <stop
-                offset="95%"
-                stopColor="#8b5cf6"
-                stopOpacity={0}
-              />
-            </linearGradient>
-          </defs>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="#ffffff05"
-            vertical={true}
-          />
-          <XAxis dataKey="time" hide />
-          <YAxis
-            stroke="#ffffff10"
-            fontSize={8}
-            tickLine={false}
-            axisLine={false}
-            domain={[
-              0,
-              (dataMax: number) =>
-                Math.max(
-                  100,
-                  Math.ceil(dataMax / 20) * 20 + 20,
-                ),
-            ]}
-            tick={{
-              fill: "#444",
-              fontSize: 8,
-              fontWeight: "bold",
-            }}
-          />
-          <Area
-            type="monotone"
-            dataKey="speed"
-            stroke="#8b5cf6"
-            strokeWidth={3}
-            fillOpacity={1}
-            fill="url(#colorSpeedLive)"
-            isAnimationActive={false}
-            connectNulls={true}
-          />
-          {(() => {
-            const realPoints = realTimeSpeedData.filter(
-              (p) =>
-                p.speed !== undefined &&
-                !p.time.startsWith("future") &&
-                !p.time.startsWith("init"),
-            );
-            const lastPoint = realPoints[realPoints.length - 1];
-            if (!lastPoint) return null;
-            return (
-              <ReferenceDot
-                x={lastPoint.time}
-                y={lastPoint.speed}
-                r={4}
-                fill="#8b5cf6"
-                stroke="#fff"
-                strokeWidth={1}
-                isFront={true}
-              />
-            );
-          })()}
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-
-    <div className="grid grid-cols-3 gap-4 mt-6">
-      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
-        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
-          Velocity
-        </p>
-        <p className="text-xl font-black text-white italic">
-          {Math.round(currentSpeed)}{" "}
-          <span className="text-[8px] opacity-40">KPH</span>
-        </p>
-      </div>
-      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
-        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
-          G-Force
-        </p>
-        <p className="text-xl font-black text-violet-400 italic">
-          {gForce.toFixed(2)}{" "}
-          <span className="text-[8px] opacity-40">G</span>
-        </p>
-      </div>
-      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
-        <p className="text-[7px] text-gray-500 font-black uppercase mb-1">
-          Peak-G
-        </p>
-        <p className="text-xl font-black text-blue-400 italic">
-          {peakG.toFixed(2)}{" "}
-          <span className="text-[8px] opacity-40">MAX</span>
-        </p>
-      </div>
-    </div>
-  </div>
-));
+  );
+});
 
 const CompareChart = React.memo(({ 
   history, 
-  selectedRuns 
+  selectedRuns,
+  lowFX = false
 }: { 
   history: any[], 
-  selectedRuns: string[] 
+  selectedRuns: string[],
+  lowFX?: boolean
 }) => {
   const activeRuns = useMemo(() => history.filter((r) => selectedRuns.includes(r.id)), [history, selectedRuns]);
-
+  const { blurClass } = getBlurClasses(lowFX);
+  
   const chartData = useMemo(() => {
     let timeMap: Record<number, any> = {};
     
@@ -4557,7 +5037,7 @@ const CompareChart = React.memo(({
         {activeRuns.map((run, idx) => {
           const colors = runColors[idx % runColors.length];
           return (
-            <div key={run.id} className="flex items-center gap-4 bg-white/5 backdrop-blur-md px-4 py-2 rounded-xl border border-white/5">
+            <div key={run.id} className={`flex items-center gap-4 bg-white/5 ${blurClass} px-4 py-2 rounded-xl border border-white/5`}>
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                 Run {idx + 1}
               </span>
@@ -4634,13 +5114,17 @@ const CompareChart = React.memo(({
 const RecordsTable = React.memo(({ 
   history, 
   selectedRuns, 
-  setSelectedRuns 
+  setSelectedRuns,
+  lowFX = false
 }: { 
   history: any[], 
   selectedRuns: string[], 
-  setSelectedRuns: React.Dispatch<React.SetStateAction<string[]>> 
-}) => (
-  <div className="bg-gray-950/40 border border-violet-500/10 overflow-hidden mx-1 mb-1 rounded-xl">
+  setSelectedRuns: React.Dispatch<React.SetStateAction<string[]>>,
+  lowFX?: boolean
+}) => {
+  const { blurSmClass } = getBlurClasses(lowFX);
+  return (
+    <div className={`bg-gray-950/40 border border-violet-500/10 overflow-hidden mx-1 mb-1 rounded-xl ${blurSmClass}`}>
     <div className="overflow-x-auto custom-scrollbar">
       <table className="w-full text-left border-collapse min-w-[600px]">
         <thead>
@@ -4695,35 +5179,39 @@ const RecordsTable = React.memo(({
         </tbody>
       </table>
     </div>
-  </div>
-));
+    </div>
+  );
+});
 
 const DashboardView = React.memo(({ 
   t, currentSpeed, accuracy, gpsHz, gpsVersion, calibrateGPS, 
   maxSpeed, elapsedTime, distanceCovered, splits, isActive, isLive,
   isTouchLocked, setIsTouchLocked,
   gForce, peakG, gpsAltitude, gpsHeading, isGpsLocked, 
-  formatTime, formatDistance, navigateView 
+  formatTime, formatDistance, navigateView, systemConfig,
+  fastestRun, systemStats
 }: DashboardViewProps) => {
+  const { lowFX } = systemConfig;
+  const { blurClass } = getBlurClasses(lowFX);
   return (
     <motion.div
       key="dashboard"
-      initial={{ opacity: 0, scale: 0.98 }}
+      initial={lowFX ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-      transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+      exit={lowFX ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
+      transition={{ duration: lowFX ? 0.1 : 0.3, ease: [0.23, 1, 0.32, 1] }}
       className="flex-1 flex flex-col gap-4 pb-8"
     >
       {/* Hero Section: Speed & Main Metrics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-gray-900/40 rounded-[2.5rem] p-10 border border-violet-500/20 flex flex-col items-center justify-center relative overflow-hidden group shadow-2xl shadow-violet-950/20">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.1),transparent_70%)]" />
+        <div className={`bg-gray-900/40 rounded-[2.5rem] p-10 border border-violet-500/20 flex flex-col items-center justify-center relative overflow-hidden group shadow-2xl shadow-violet-950/20 ${blurClass}`}>
+          {!lowFX && <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.1),transparent_70%)]" />}
           
           <div className="absolute top-6 right-6 flex items-center gap-2">
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsTouchLocked(!isTouchLocked)}
-                className={`p-3 rounded-2xl border transition-all shadow-lg backdrop-blur-md ${isTouchLocked ? 'bg-violet-600 border-violet-500 text-white' : 'bg-white/5 border-gray-800 text-violet-500 hover:bg-violet-600 hover:text-white'}`}
+                className={`p-3 rounded-2xl border transition-all shadow-lg ${blurClass} ${isTouchLocked ? 'bg-violet-600 border-violet-500 text-white' : 'bg-white/5 border-gray-800 text-violet-500 hover:bg-violet-600 hover:text-white'}`}
               >
                 {isTouchLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
               </motion.button>
@@ -4770,24 +5258,24 @@ const DashboardView = React.memo(({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <BentoCard icon={Timer} title={t.elapsedTime}>
-            <div className="text-5xl font-black font-mono italic tracking-tighter text-blue-400 leading-none mb-1">
-              {formatTime(elapsedTime)}
-            </div>
-            <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">SECONDS</div>
-          </BentoCard>
+          <div className="grid grid-cols-2 gap-4">
+            <BentoCard icon={Timer} title={t.elapsedTime} lowFX={lowFX}>
+              <div className="text-5xl font-black font-mono italic tracking-tighter text-blue-400 leading-none mb-1">
+                {formatTime(elapsedTime)}
+              </div>
+              <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">SECONDS</div>
+            </BentoCard>
 
-          <BentoCard icon={MapPin} title={t.distance}>
-            <div className="text-5xl font-black font-mono italic tracking-tighter text-green-400 leading-none mb-1">
-              {formatDistance(distanceCovered).replace(/[a-z]/g, '')}
-            </div>
-            <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">
-              {formatDistance(distanceCovered).includes('km') ? 'KILOMETERS' : 'METERS'}
-            </div>
-          </BentoCard>
+            <BentoCard icon={MapPin} title={t.distance} lowFX={lowFX}>
+              <div className="text-5xl font-black font-mono italic tracking-tighter text-green-400 leading-none mb-1">
+                {formatDistance(distanceCovered).replace(/[a-z]/g, '')}
+              </div>
+              <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+                {formatDistance(distanceCovered).includes('km') ? 'KILOMETERS' : 'METERS'}
+              </div>
+            </BentoCard>
 
-          <BentoCard icon={Activity} title={t.gForce} className="col-span-2">
+            <BentoCard icon={Activity} title={t.gForce} className="col-span-2" lowFX={lowFX}>
             <div className="flex items-end justify-between">
               <div className="flex items-baseline gap-2">
                 <span className="text-6xl font-black font-mono italic text-violet-500 leading-none">
@@ -4808,6 +5296,28 @@ const DashboardView = React.memo(({
               />
             </div>
           </BentoCard>
+
+          {/* Cloud Insights Card */}
+          <BentoCard icon={Cloud} title="System Cloud Analytics" className="col-span-2" lowFX={lowFX}>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="border-r border-white/5 pr-4">
+                <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Peak System Speed</div>
+                <div className="text-3xl font-black text-red-500 italic font-mono leading-none">
+                  {systemStats.peakSpeed} <span className="text-[10px] opacity-50">KPH</span>
+                </div>
+              </div>
+              <div className="pl-2">
+                <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Global Data Points</div>
+                <div className="text-3xl font-black text-blue-500 italic font-mono leading-none">
+                  {systemStats.totalDist} <span className="text-[10px] opacity-50">K</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center gap-2 p-2 bg-violet-600/5 rounded-xl border border-violet-500/10">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <div className="text-[9px] font-bold text-violet-400/80 uppercase">Maximizing Cloud Sync: {systemStats.totalUsers} Active Nodes Detected</div>
+            </div>
+          </BentoCard>
         </div>
       </div>
 
@@ -4815,10 +5325,10 @@ const DashboardView = React.memo(({
       <div className="bg-gray-950 rounded-[2.5rem] border border-gray-800/80 overflow-hidden shadow-2xl relative">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.05),transparent_50%)]" />
         
-        <div className="flex items-center justify-between p-7 border-b border-white/5 bg-gray-900/20 relative z-10 shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center p-7 border-b border-white/5 bg-gray-900/20 relative z-10 shrink-0 min-h-[76px]">
+          <div className="absolute inset-0 flex flex-row items-center justify-center gap-3 pointer-events-none">
             <TrendingUp className="w-5 h-5 text-violet-500" />
-            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white italic">
+            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white italic text-center">
               {t.splitsTargets}
             </h2>
           </div>
@@ -4826,7 +5336,7 @@ const DashboardView = React.memo(({
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="flex items-center gap-2 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.15)]"
+              className="absolute right-7 flex items-center gap-2 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.15)]"
             >
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_#ef4444]" />
               <span className="text-[10px] font-black text-red-500 uppercase tracking-widest italic">
@@ -4895,7 +5405,6 @@ const DashboardView = React.memo(({
         </div>
         <motion.button
           whileTap={{ scale: 0.9 }}
-          animate={{ rotate: gpsVersion * 180 }}
           onClick={calibrateGPS}
           className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-violet-600/10 border border-violet-500/20 text-violet-400 text-[10px] font-black uppercase tracking-wider hover:bg-violet-600 hover:text-white transition-colors"
         >
