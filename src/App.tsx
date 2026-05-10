@@ -183,6 +183,7 @@ interface Translations {
   signIn: string;
   signOut: string;
   adminPanel: string;
+  ownerPanel: string;
   createAccount: string;
   userList: string;
   invalidCredentials: string;
@@ -266,6 +267,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     signIn: "MASUK SEKARANG",
     signOut: "Keluar",
     adminPanel: "Panel Admin",
+    ownerPanel: "Panel Pemilik",
     createAccount: "Buat Akun",
     userList: "Daftar Pengguna",
     invalidCredentials: "Nama atau Password salah!",
@@ -341,6 +343,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     signIn: "SIGN IN NOW",
     signOut: "Sign Out",
     adminPanel: "Admin Panel",
+    ownerPanel: "Owner Panel",
     createAccount: "Create Account",
     userList: "User List",
     invalidCredentials: "Invalid Name or Password!",
@@ -419,6 +422,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     signIn: "เข้าสู่ระบบตอนนี้",
     signOut: "ออกจากระบบ",
     adminPanel: "แผงควบคุมแอดมิน",
+    ownerPanel: "แผงควบคุมเจ้าของ",
     createAccount: "สร้างบัญชี",
     userList: "รายชื่อผู้ใช้",
     invalidCredentials: "ชื่อหรือรหัสผ่านไม่ถูกต้อง!",
@@ -499,6 +503,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     signIn: "ĐĂNG NHẬP NGAY",
     signOut: "Đăng xuất",
     adminPanel: "Bảng quản trị",
+    ownerPanel: "Bảng quản lý chủ sở hữu",
     createAccount: "Tạo tài khoản",
     userList: "Danh sách người dùng",
     invalidCredentials: "Tên hoặc Mật khẩu không đúng!",
@@ -578,6 +583,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     signIn: "LOG MASUK SEKARANG",
     signOut: "Log Keluar",
     adminPanel: "Panel Admin",
+    ownerPanel: "Panel Pemilik",
     createAccount: "Buat Akaun",
     userList: "Senarai Pengguna",
     invalidCredentials: "Nama atau Kata Laluan salah!",
@@ -833,7 +839,7 @@ export default function App() {
     return id;
   });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const isMainOwner = ["atmin", "owner27"].includes((currentUser?.username || "").toLowerCase());
+  const isMainOwner = ["owner27"].includes((currentUser?.username || "").toLowerCase());
   const isOwner = currentUser?.role === "owner" || isMainOwner;
   const isAdminOrOwner = currentUser?.role === "admin" || isOwner;
   const [users, setUsers] = useState<User[]>(() => {
@@ -920,12 +926,9 @@ export default function App() {
     });
   };
   const [loginError, setLoginError] = useState("");
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [registerForm, setRegisterForm] = useState({
-    username: "",
-    password: "",
-    confirmPassword: "",
-  });
+  const [authMode, setAuthMode] = useState<"login">("login");
+  // Removed registration state
+
   const [newCustomerForm, setNewCustomerForm] = useState<{
     username: string;
     password: string;
@@ -1523,52 +1526,52 @@ export default function App() {
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const t = TRANSLATIONS[lang];
-    setLoginError("");
+  // const handleRegister = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   const t = TRANSLATIONS[lang];
+  //   setLoginError("");
 
-    if (!registerForm.username || !registerForm.password) {
-      setLoginError(t.nameRequired);
-      return;
-    }
+  //   if (!registerForm.username || !registerForm.password) {
+  //     setLoginError(t.nameRequired);
+  //     return;
+  //   }
 
-    if (registerForm.password.length < 4) {
-      setLoginError(t.passRequired);
-      return;
-    }
+  //   if (registerForm.password.length < 4) {
+  //     setLoginError(t.passRequired);
+  //     return;
+  //   }
 
-    if (registerForm.password !== registerForm.confirmPassword) {
-      setLoginError("Passwords do not match");
-      return;
-    }
+  //   if (registerForm.password !== registerForm.confirmPassword) {
+  //     setLoginError("Passwords do not match");
+  //     return;
+  //   }
 
-    const inputUsername = registerForm.username.trim();
-    const usernameKey = inputUsername.toLowerCase();
+  //   const inputUsername = registerForm.username.trim();
+  //   const usernameKey = inputUsername.toLowerCase();
     
-    try {
-      const userDoc = await getDoc(doc(db, "users", usernameKey));
-      if (userDoc.exists()) {
-        setLoginError("Username already exists");
-        return;
-      }
+  //   try {
+  //     const userDoc = await getDoc(doc(db, "users", usernameKey));
+  //     if (userDoc.exists()) {
+  //       setLoginError("Username already exists");
+  //       return;
+  //     }
 
-      const newUser: User = {
-        username: inputUsername,
-        password: registerForm.password,
-        role: "customer",
-        lastSeen: Date.now(),
-        boundDeviceId: deviceId,
-        createdAt: serverTimestamp() as any,
-      };
+  //     const newUser: User = {
+  //       username: inputUsername,
+  //       password: registerForm.password,
+  //       role: "customer",
+  //       lastSeen: Date.now(),
+  //       boundDeviceId: deviceId,
+  //       createdAt: serverTimestamp() as any,
+  //     };
 
-      await setDoc(doc(db, "users", usernameKey), newUser);
-      await proceedWithLogin(newUser);
-    } catch (err: any) {
-      setLoginError("Registration failed: " + (err.message || "Unknown"));
-      console.error(err);
-    }
-  };
+  //     await setDoc(doc(db, "users", usernameKey), newUser);
+  //     await proceedWithLogin(newUser);
+  //   } catch (err: any) {
+  //     setLoginError("Registration failed: " + (err.message || "Unknown"));
+  //     console.error(err);
+  //   }
+  // };
 
   const proceedWithLogin = async (user: User) => {
     const t = TRANSLATIONS[lang];
@@ -1791,10 +1794,10 @@ export default function App() {
     // Security check: Only owner can delete admins or other owners
     const targetUser = users.find(u => (u.username || "").toLowerCase() === lowerName);
     
-    if (targetUser?.role === "owner" && ["atmin", "owner27"].includes(lowerName)) return; // Primary safety
+    if (targetUser?.role === "owner" && ["owner27"].includes(lowerName)) return; // Primary safety
     if (lowerName === (currentUser?.username || "").toLowerCase()) return; // Protect self
     
-    if (targetUser && targetUser.role === "owner" && !isMainOwner) {
+    if (targetUser && targetUser.role === "owner" && !isMainOwner && lowerName !== "atmin") {
       setAdminMessage("Only the main owner can delete owners");
       setTimeout(() => setAdminMessage(""), 3000);
       return;
@@ -2588,7 +2591,7 @@ export default function App() {
       const calculatedAvgSpeed = (effectiveTime > 0) ? (effectiveDistance / (effectiveTime / 1000)) * 3.6 : 0;
 
       const rawRun: RaceRun = {
-        id: Date.now().toString(),
+        id: Date.now().toString() + Math.random().toString(36).slice(2, 9),
         date: Date.now(),
         totalDistance: effectiveDistance,
         totalTime: effectiveTime,
@@ -2627,7 +2630,7 @@ export default function App() {
         // Background sync
         setDoc(doc(db, "users", usernameKey, "runs", newRun.id), newRun)
           .catch(e => {
-            console.error("Background sync failed:", e);
+            handleFirestoreError(e, OperationType.WRITE, `users/${usernameKey}/runs/${newRun.id}`);
           });
       } else {
         setHistory((prev) => [newRun, ...prev]);
@@ -2833,25 +2836,13 @@ export default function App() {
                 </h1>
               </div>
 
-              <div className="flex bg-gray-950/80 p-1 rounded-2xl mb-8 border border-gray-800">
-                <button 
-                  onClick={() => { setAuthMode("login"); setLoginError(""); }}
-                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${authMode === "login" ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-gray-600 hover:text-gray-400"}`}
-                >Login</button>
-                <button 
-                  onClick={() => { setAuthMode("register"); setLoginError(""); }}
-                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${authMode === "register" ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-gray-600 hover:text-gray-400"}`}
-                >Register</button>
-              </div>
-
               {loginError && (
                 <div className="mb-6 bg-red-500/10 border border-red-500/30 text-red-500 text-[10px] font-black uppercase text-center py-3 rounded-xl animate-shake">
                   {loginError}
                 </div>
               )}
 
-              {authMode === "login" ? (
-                <form onSubmit={handleLogin} className="space-y-5">
+              <form onSubmit={handleLogin} className="space-y-5">
                   <div className="space-y-2">
                     <div className="relative">
                       <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
@@ -2925,43 +2916,6 @@ export default function App() {
                     </p>
                   )}
                 </form>
-              ) : (
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={registerForm.username}
-                      onChange={(e) => setRegisterForm({...registerForm, username: e.target.value})}
-                      placeholder="NEW USERNAME"
-                      className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold focus:border-violet-500/50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <input
-                      type="password"
-                      value={registerForm.password}
-                      onChange={(e) => setRegisterForm({...registerForm, password: e.target.value})}
-                      placeholder="NEW PASSWORD"
-                      className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold focus:border-violet-500/50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <input
-                      type="password"
-                      value={registerForm.confirmPassword}
-                      onChange={(e) => setRegisterForm({...registerForm, confirmPassword: e.target.value})}
-                      placeholder="CONFIRM PASSWORD"
-                      className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 px-6 text-sm font-bold focus:border-violet-500/50"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full py-5 bg-violet-600 rounded-2xl text-[10px] font-black uppercase tracking-widest italic shadow-xl shadow-violet-600/20 text-white mt-4 border border-violet-400/30"
-                  >
-                    Create Account
-                  </button>
-                </form>
-              )}
             </div>
           </motion.main>
         ) : (
@@ -3219,6 +3173,7 @@ export default function App() {
                   systemConfig={systemConfig}
                   fastestRun={fastestRun}
                   systemStats={systemStats}
+                  isAdminOrOwner={isAdminOrOwner}
                 />
               )}
 
@@ -3281,7 +3236,7 @@ export default function App() {
                         const showDivider = currentDate !== previousDate;
 
                         return (
-                          <React.Fragment key={run.id}>
+                          <React.Fragment key={`${run.id}-${index}`}>
                             {showDivider && (
                               <div className="flex items-center gap-4 pt-4 pb-2 px-1">
                                 <div className="h-px flex-1 bg-gradient-to-r from-transparent to-gray-800" />
@@ -3731,11 +3686,11 @@ export default function App() {
                     <section className="bg-gray-900/60 rounded-3xl border border-violet-500/30 p-6 shadow-xl shadow-violet-500/5">
                       <h3 className="text-sm font-bold uppercase tracking-widest text-violet-500 mb-6 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <UserPlus className="w-4 h-4" /> {t.adminPanel}
+                          <UserPlus className="w-4 h-4" /> {isOwner ? t.ownerPanel : t.adminPanel}
                         </div>
                         {(isAdminOrOwner) && (
                           <span className="text-[8px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded border border-amber-500/20 font-black animate-pulse">
-                            ADMIN PRIVILEGES ACTIVE
+                            {isOwner ? "OWNER PRIVILEGES ACTIVE" : "ADMIN PRIVILEGES ACTIVE"}
                           </span>
                         )}
                       </h3>
@@ -3923,8 +3878,8 @@ export default function App() {
                               <Trophy className="w-3 h-3 text-red-500" /> Global Run Moderation
                             </h4>
                             <div className="space-y-1.5 max-h-48 overflow-auto pr-2 custom-scrollbar mb-8">
-                              {globalRuns.map((run) => (
-                                <div key={run.id} className="bg-black/40 p-3 rounded-lg border border-gray-900 flex justify-between items-center gap-3">
+                              {globalRuns.map((run, i) => (
+                                <div key={run.id + i} className="bg-black/40 p-3 rounded-lg border border-gray-900 flex justify-between items-center gap-3">
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                       <p className="text-[10px] font-black text-violet-400 uppercase tracking-tighter leading-none">{run.username}</p>
@@ -3962,8 +3917,8 @@ export default function App() {
                               </div>
                             </div>
                             <div className="space-y-1.5 max-h-32 overflow-auto pr-2 custom-scrollbar">
-                              {auditLogs.map((log) => (
-                                <div key={log.id} className="bg-black/40 p-2 rounded-lg border border-gray-900 flex justify-between items-start gap-3">
+                              {auditLogs.map((log, i) => (
+                                <div key={log.id + i} className="bg-black/40 p-2 rounded-lg border border-gray-900 flex justify-between items-start gap-3">
                                   <div className="flex-1">
                                     <p className="text-[9px] font-black text-violet-400 uppercase tracking-tighter leading-none mb-1">{log.action}</p>
                                     <p className="text-[8px] text-gray-500 leading-tight">{log.detail}</p>
@@ -4291,7 +4246,7 @@ export default function App() {
                                         <Database className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {!["atmin", "owner27"].includes((u.username || "").toLowerCase()) && u.username !== currentUser?.username && (isMainOwner || u.role !== "owner") && (
+                                    {!["owner27"].includes((u.username || "").toLowerCase()) && u.username !== currentUser?.username && (isMainOwner || u.role !== "owner") && (
                                       <button
                                         onClick={() => handleDeleteUser(u.username)}
                                         title="Delete User"
@@ -4306,7 +4261,7 @@ export default function App() {
                                   className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${u.role === "owner" ? "bg-amber-500/20 text-amber-400" : u.role === "admin" ? "bg-violet-500/20 text-violet-400" : "bg-blue-500/20 text-blue-400"}`}
                                 >
                                   {u.role === "customer"
-                                    ? "MEMBER RACE METER"
+                                    ? "MEMBER DRAG RACE"
                                     : u.role === "owner" ? "OWNER" : u.role}
                                 </span>
                               </div>
@@ -4759,6 +4714,7 @@ interface DashboardViewProps {
   systemConfig: any;
   fastestRun: any;
   systemStats: any;
+  isAdminOrOwner: boolean;
 }
 
 const getBlurClasses = (lowFX: boolean) => ({
@@ -5093,7 +5049,7 @@ const CompareChart = React.memo(({
             />
             {activeRuns.map((run, idx) => (
               <Line 
-                key={`run${idx}`}
+                key={run.id}
                 type="monotone" 
                 dataKey={`run${idx}_speed`} 
                 stroke={runColors[idx % runColors.length].speed}
@@ -5146,9 +5102,9 @@ const RecordsTable = React.memo(({
               </td>
             </tr>
           ) : (
-            history.map((run) => (
+            history.map((run, i) => (
               <tr
-                key={run.id}
+                key={`${run.id}-${i}`}
                 className={`border-b border-violet-500/5 transition-all uppercase cursor-pointer relative group ${selectedRuns.includes(run.id) ? "bg-violet-600/15" : "hover:bg-violet-500/5"}`}
                 onClick={() => {
                   setSelectedRuns((prev) => prev.includes(run.id) ? prev.filter((id) => id !== run.id) : [...prev, run.id]);
@@ -5189,7 +5145,7 @@ const DashboardView = React.memo(({
   isTouchLocked, setIsTouchLocked,
   gForce, peakG, gpsAltitude, gpsHeading, isGpsLocked, 
   formatTime, formatDistance, navigateView, systemConfig,
-  fastestRun, systemStats
+  fastestRun, systemStats, isAdminOrOwner
 }: DashboardViewProps) => {
   const { lowFX } = systemConfig;
   const { blurClass } = getBlurClasses(lowFX);
@@ -5223,7 +5179,7 @@ const DashboardView = React.memo(({
           
           <div className="relative transform-gpu will-change-transform flex items-center justify-center">
             <motion.div 
-              key={Math.round(currentSpeed)}
+              key={`speed-${Math.round(currentSpeed)}`}
               initial={{ scale: 0.95, opacity: 0.8 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
@@ -5258,136 +5214,141 @@ const DashboardView = React.memo(({
           </div>
         </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <BentoCard icon={Timer} title={t.elapsedTime} lowFX={lowFX}>
-              <div className="text-5xl font-black font-mono italic tracking-tighter text-blue-400 leading-none mb-1">
-                {formatTime(elapsedTime)}
-              </div>
-              <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">SECONDS</div>
-            </BentoCard>
-
-            <BentoCard icon={MapPin} title={t.distance} lowFX={lowFX}>
-              <div className="text-5xl font-black font-mono italic tracking-tighter text-green-400 leading-none mb-1">
-                {formatDistance(distanceCovered).replace(/[a-z]/g, '')}
-              </div>
-              <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">
-                {formatDistance(distanceCovered).includes('km') ? 'KILOMETERS' : 'METERS'}
-              </div>
-            </BentoCard>
-
-            <BentoCard icon={Activity} title={t.gForce} className="col-span-2" lowFX={lowFX}>
-            <div className="flex items-end justify-between">
-              <div className="flex items-baseline gap-2">
-                <span className="text-6xl font-black font-mono italic text-violet-500 leading-none">
-                  {gForce.toFixed(2)}
+        {/* Main Splits Panel */}
+        <div className="bg-gray-950 rounded-[2.5rem] border border-gray-800/80 overflow-hidden shadow-2xl relative flex flex-col">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.05),transparent_50%)]" />
+          
+          <div className="flex items-center justify-center p-7 border-b border-white/5 bg-gray-900/20 relative z-10 shrink-0 min-h-[76px]">
+            <div className="absolute inset-0 flex flex-row items-center justify-center gap-3 pointer-events-none">
+              <TrendingUp className="w-5 h-5 text-violet-500" />
+              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white italic text-center">
+                {t.splitsTargets}
+              </h2>
+            </div>
+            {isActive && (
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="absolute right-7 flex items-center gap-2 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.15)]"
+              >
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_#ef4444]" />
+                <span className="text-[10px] font-black text-red-500 uppercase tracking-widest italic">
+                  {t.recording}
                 </span>
-                <span className="text-sm text-gray-500 font-black italic">G</span>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">Peak G</div>
-                <div className="text-2xl font-black text-violet-400 font-mono italic leading-none">{peakG.toFixed(2)}</div>
-              </div>
-            </div>
-            <div className="mt-4 h-2 bg-black/40 rounded-full p-0.5 border border-white/5">
-              <motion.div
-                className="h-full bg-gradient-to-r from-violet-600 to-indigo-500 rounded-full shadow-[0_0_15px_rgba(139,92,246,0.6)]"
-                animate={{ width: `${Math.min(Math.abs(gForce) * 50, 100)}%` }}
-                transition={{ type: "spring", stiffness: 100, damping: 15 }}
-              />
-            </div>
-          </BentoCard>
-
-          {/* Cloud Insights Card */}
-          <BentoCard icon={Cloud} title="System Cloud Analytics" className="col-span-2" lowFX={lowFX}>
-            <div className="grid grid-cols-2 gap-6">
-              <div className="border-r border-white/5 pr-4">
-                <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Peak System Speed</div>
-                <div className="text-3xl font-black text-red-500 italic font-mono leading-none">
-                  {systemStats.peakSpeed} <span className="text-[10px] opacity-50">KPH</span>
-                </div>
-              </div>
-              <div className="pl-2">
-                <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Global Data Points</div>
-                <div className="text-3xl font-black text-blue-500 italic font-mono leading-none">
-                  {systemStats.totalDist} <span className="text-[10px] opacity-50">K</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 flex items-center gap-2 p-2 bg-violet-600/5 rounded-xl border border-violet-500/10">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              <div className="text-[9px] font-bold text-violet-400/80 uppercase">Maximizing Cloud Sync: {systemStats.totalUsers} Active Nodes Detected</div>
-            </div>
-          </BentoCard>
-        </div>
-      </div>
-
-      {/* Main Splits Panel */}
-      <div className="bg-gray-950 rounded-[2.5rem] border border-gray-800/80 overflow-hidden shadow-2xl relative">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.05),transparent_50%)]" />
-        
-        <div className="flex items-center justify-center p-7 border-b border-white/5 bg-gray-900/20 relative z-10 shrink-0 min-h-[76px]">
-          <div className="absolute inset-0 flex flex-row items-center justify-center gap-3 pointer-events-none">
-            <TrendingUp className="w-5 h-5 text-violet-500" />
-            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white italic text-center">
-              {t.splitsTargets}
-            </h2>
+              </motion.div>
+            )}
           </div>
-          {isActive && (
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="absolute right-7 flex items-center gap-2 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.15)]"
-            >
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_#ef4444]" />
-              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest italic">
-                {t.recording}
-              </span>
-            </motion.div>
-          )}
-        </div>
 
-        <div className="divide-y divide-white/[0.03] relative z-10 overflow-y-auto max-h-[300px] lg:max-h-[400px] custom-scrollbar">
-          {splits.map((s, i) => (
-            <div
-              key={`${s.label}-${i}`}
-              className={`px-8 py-5 grid grid-cols-[1.5fr_auto_1fr] items-center gap-6 transition-all ${s.time ? "bg-violet-500/[0.02]" : "hover:bg-white/[0.01]"}`}
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-black text-gray-200 italic uppercase">
-                  {s.label}
-                </span>
-                <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest font-bold">
-                  {s.type === "speed" ? `${s.targetSpeed} KPH TARGET` : `${formatDistance(s.distance || 0)} TARGET`}
-                </span>
-              </div>
-
-              <div className="text-center min-w-[100px]">
-                <div
-                  className={`text-3xl font-black italic tabular-nums leading-none tracking-tighter ${s.time ? "text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" : "text-gray-800"}`}
-                >
-                  {s.time ? s.time.toFixed(2) : "--.--"}
-                  <span className="text-xs ml-1 not-italic uppercase opacity-20 font-bold">
-                    s
+          <div className="divide-y divide-white/[0.03] relative z-10 overflow-y-auto max-h-[300px] lg:max-h-[460px] custom-scrollbar">
+            {splits.map((s, i) => (
+              <div
+                key={`${s.label}-${i}`}
+                className={`px-8 py-4 flex flex-col gap-3 transition-all ${s.time ? "bg-violet-500/[0.02]" : "hover:bg-white/[0.01]"}`}
+              >
+                <div className="flex flex-col">
+                  <span className="text-xs font-black text-gray-200 italic uppercase">
+                    {s.label}
+                  </span>
+                  <span className="text-[9px] font-mono text-gray-500 uppercase tracking-widest font-bold">
+                    {s.type === "speed" ? `${s.targetSpeed} KPH TARGET` : `${formatDistance(s.distance || 0)} TARGET`}
                   </span>
                 </div>
-              </div>
 
-              <div className="text-right">
-                <div
-                  className={`text-xl font-black font-mono tracking-tighter italic ${s.speedAtSplit ? "text-blue-400" : "text-gray-800"}`}
-                >
-                  {s.speedAtSplit
-                    ? Math.round(s.speedAtSplit)
-                    : "---"}
-                  <span className="text-[10px] ml-1 not-italic opacity-30 font-bold uppercase">
-                    kph
-                  </span>
+                <div className="flex justify-between items-center">
+                  <div className="text-left">
+                    <div
+                      className={`text-2xl font-black italic tabular-nums leading-none tracking-tighter ${s.time ? "text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" : "text-gray-800"}`}
+                    >
+                      {s.time ? s.time.toFixed(2) : "--.--"}
+                      <span className="text-xs ml-1 not-italic uppercase opacity-20 font-bold">
+                        s
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div
+                      className={`text-lg font-black font-mono tracking-tighter italic ${s.speedAtSplit ? "text-blue-400" : "text-gray-800"}`}
+                    >
+                      {s.speedAtSplit
+                        ? Math.round(s.speedAtSplit)
+                        : "---"}
+                      <span className="text-[10px] ml-1 not-italic opacity-30 font-bold uppercase">
+                        kph
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <BentoCard icon={Timer} title={t.elapsedTime} lowFX={lowFX}>
+          <div className="text-5xl font-black font-mono italic tracking-tighter text-blue-400 leading-none mb-1">
+            {formatTime(elapsedTime)}
+          </div>
+          <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">SECONDS</div>
+        </BentoCard>
+
+        <BentoCard icon={MapPin} title={t.distance} lowFX={lowFX}>
+          <div className="text-5xl font-black font-mono italic tracking-tighter text-green-400 leading-none mb-1">
+            {formatDistance(distanceCovered).replace(/[a-z]/g, '')}
+          </div>
+          <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+            {formatDistance(distanceCovered).includes('km') ? 'KILOMETERS' : 'METERS'}
+          </div>
+        </BentoCard>
+
+        <BentoCard icon={Activity} title={t.gForce} className="col-span-2" lowFX={lowFX}>
+        <div className="flex items-end justify-between">
+          <div className="flex items-baseline gap-2">
+            <span className="text-6xl font-black font-mono italic text-violet-500 leading-none">
+              {gForce.toFixed(2)}
+            </span>
+            <span className="text-sm text-gray-500 font-black italic">G</span>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">Peak G</div>
+            <div className="text-2xl font-black text-violet-400 font-mono italic leading-none">{peakG.toFixed(2)}</div>
+          </div>
+        </div>
+        <div className="mt-4 h-2 bg-black/40 rounded-full p-0.5 border border-white/5">
+          <motion.div
+            className="h-full bg-gradient-to-r from-violet-600 to-indigo-500 rounded-full shadow-[0_0_15px_rgba(139,92,246,0.6)]"
+            animate={{ width: `${Math.min(Math.abs(gForce) * 50, 100)}%` }}
+            transition={{ type: "spring", stiffness: 100, damping: 15 }}
+          />
+        </div>
+      </BentoCard>
+
+      {/* Cloud Insights Card */}
+      {isAdminOrOwner && (
+        <BentoCard icon={Cloud} title="System Cloud Analytics" className="col-span-2" lowFX={lowFX}>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="border-r border-white/5 pr-4">
+              <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Peak System Speed</div>
+              <div className="text-3xl font-black text-red-500 italic font-mono leading-none">
+                {systemStats.peakSpeed} <span className="text-[10px] opacity-50">KPH</span>
+              </div>
+            </div>
+            <div className="pl-2">
+              <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Global Data Points</div>
+              <div className="text-3xl font-black text-blue-500 italic font-mono leading-none">
+                {systemStats.totalDist} <span className="text-[10px] opacity-50">K</span>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-2 p-2 bg-violet-600/5 rounded-xl border border-violet-500/10">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <div className="text-[9px] font-bold text-violet-400/80 uppercase">Maximizing Cloud Sync: {systemStats.totalUsers} Active Nodes Detected</div>
+          </div>
+        </BentoCard>
+      )}
+    </div>
+
 
       {/* GPS Status & Calibration Bar */}
       <div className="bg-gray-900/60 rounded-2xl p-4 border border-gray-800 flex items-center justify-between px-6 mb-4">
