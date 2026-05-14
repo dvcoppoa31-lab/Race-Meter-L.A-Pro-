@@ -60,6 +60,7 @@ import {
   Cloud,
   Sun,
   CloudRain,
+  Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -2748,7 +2749,7 @@ export default function App() {
   const blurLgClass = systemConfig.lowFX ? "" : "backdrop-blur-lg";
 
   return (
-    <div className={`min-h-screen bg-[linear-gradient(to_bottom_right,#000000,#0f0c29,#302b63,#000000)] text-gray-100 font-sans selection:bg-violet-500/30 overflow-x-hidden relative ${systemConfig.lowFX ? 'low-fx-active' : ''}`}>
+    <div className={`min-h-screen bg-[linear-gradient(to_bottom_right,#000000,#0f0c29,#302b63,#000000)] text-gray-100 font-sans selection:bg-violet-500/30 overflow-x-hidden relative ${systemConfig.lowFX ? 'low-fx-active' : ''} landscape:max-h-screen landscape:overflow-y-auto`}>
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         {!systemConfig.lowFX && (
           <>
@@ -3751,6 +3752,26 @@ export default function App() {
                         )}
                       </h3>
 
+                      {/* Online Members Section */}
+                      {(isAdminOrOwner) && (
+                        <section className="bg-gray-900/60 rounded-3xl border border-violet-500/30 p-6 shadow-xl shadow-violet-500/5 mb-8">
+                          <h4 className="text-[10px] font-bold uppercase tracking-widest text-violet-500 mb-4 flex items-center gap-2">
+                            <Users className="w-3.5 h-3.5" /> Online Members
+                          </h4>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {users.filter(u => u.lastSeen && Date.now() - u.lastSeen < 120000).map(u => (
+                              <div key={u.username} className="bg-black/40 p-3 rounded-xl border border-gray-800 flex items-center gap-3">
+                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                <p className="text-[10px] font-bold text-gray-200">{u.username}</p>
+                              </div>
+                            ))}
+                            {users.filter(u => u.lastSeen && Date.now() - u.lastSeen < 120000).length === 0 && (
+                              <p className="text-[10px] text-gray-600 italic px-3">No members currently online.</p>
+                            )}
+                          </div>
+                        </section>
+                      )}
+
                       {(isAdminOrOwner) && (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                           <div className="bg-gray-950/50 rounded-2xl p-4 border border-violet-500/10">
@@ -3939,7 +3960,7 @@ export default function App() {
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                       <p className="text-[10px] font-black text-violet-400 uppercase tracking-tighter leading-none">{run.username}</p>
-                                      <span className="text-[8px] text-gray-500 font-bold bg-gray-900 rounded px-1 py-0.5">{run.totalDistance}m</span>
+                                      <span className="text-[8px] text-gray-500 font-bold bg-gray-900 rounded px-1 py-0.5">{Math.round(run.totalDistance)}m</span>
                                     </div>
                                     <p className="text-[10px] text-gray-400 font-mono tracking-tight">{(run.totalTime / 1000).toFixed(3)}s | {(run.maxSpeed || 0).toFixed(1)} km/h peak</p>
                                   </div>
@@ -4201,7 +4222,7 @@ export default function App() {
                                       </div>
                                     ) : u.lastSeen && u.lastSeen > 0 ? (
                                       <span className="text-[8px] font-bold text-gray-600 uppercase">
-                                        {Math.floor((Date.now() - u.lastSeen) / 60000)}m ago
+                                        {formatLastSeen(u.lastSeen)}
                                       </span>
                                     ) : null}
                                   {(isOwner && u.role !== "owner" || isMainOwner) && (
@@ -5195,6 +5216,20 @@ const RecordsTable = React.memo(({
   );
 });
 
+const formatLastSeen = (lastSeen: number) => {
+  const diff = Date.now() - lastSeen;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes > 0 ? `${remainingMinutes}m` : ''} ago`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
+
 const WeatherCard = React.memo(({ t }: { t: Translations }) => {
   const [condition, setCondition] = useState<"sunny" | "cloudy" | "rainy">("sunny");
   
@@ -5252,10 +5287,10 @@ const DashboardView = React.memo(({
       animate={{ opacity: 1, scale: 1 }}
       exit={lowFX ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
       transition={{ duration: lowFX ? 0.1 : 0.3, ease: [0.23, 1, 0.32, 1] }}
-      className="flex-1 flex flex-col gap-4 pb-8"
+      className="flex-1 flex flex-col gap-4 pb-8 landscape:pb-4"
     >
       {/* Hero Section: Speed & Main Metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 landscape:grid-cols-2 gap-4">
         <div className={`bg-gray-900/40 rounded-[2.5rem] p-10 border border-violet-500/20 flex flex-col items-center justify-center relative overflow-hidden group shadow-2xl shadow-violet-950/20 ${blurClass}`}>
           {!lowFX && <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.1),transparent_70%)]" />}
           
