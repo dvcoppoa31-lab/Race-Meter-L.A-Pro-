@@ -12,7 +12,6 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: 'RACE METER L.A PRO+',
           short_name: 'RaceMeterLA',
@@ -20,20 +19,7 @@ export default defineConfig(({mode}) => {
           theme_color: '#111111',
           background_color: '#111111',
           display: 'standalone',
-          icons: [
-            {
-              src: 'https://picsum.photos/192/192',
-              sizes: '192x192',
-              type: 'image/png',
-              purpose: 'any maskable'
-            },
-            {
-              src: 'https://picsum.photos/512/512',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any maskable'
-            }
-          ]
+          icons: []
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],

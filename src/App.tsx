@@ -5281,7 +5281,8 @@ const DashboardView = React.memo(({
   const { lowFX } = systemConfig;
   const { blurClass } = getBlurClasses(lowFX);
   return (
-    <motion.div
+    <>
+      <motion.div
       key="dashboard"
       initial={lowFX ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -5290,8 +5291,8 @@ const DashboardView = React.memo(({
       className="flex-1 flex flex-col gap-4 pb-8 landscape:pb-4"
     >
       {/* Hero Section: Speed & Main Metrics */}
-      <div className="grid grid-cols-1 landscape:grid-cols-2 gap-4">
-        <div className={`bg-gray-900/40 rounded-[2.5rem] p-10 border border-violet-500/20 flex flex-col items-center justify-center relative overflow-hidden group shadow-2xl shadow-violet-950/20 ${blurClass}`}>
+      <div className="grid grid-cols-1 landscape:grid-cols-3 gap-4 w-full">
+        <div className={`bg-gray-900/40 rounded-[2.5rem] p-6 landscape:p-8 border border-violet-500/20 flex flex-col items-center justify-center relative overflow-hidden group shadow-2xl shadow-violet-950/20 col-span-1 landscape:col-span-2 ${blurClass}`}>
           {!lowFX && <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.1),transparent_70%)]" />}
           
           <div className="absolute top-6 right-6 flex items-center gap-2">
@@ -5346,7 +5347,7 @@ const DashboardView = React.memo(({
         </div>
 
         {/* Main Splits Panel */}
-        <div className="bg-gray-950 rounded-[2.5rem] border border-gray-800/80 overflow-hidden shadow-2xl relative flex flex-col">
+        <div className="bg-gray-950 rounded-[2.5rem] border border-gray-800/80 overflow-hidden shadow-2xl relative flex flex-col col-span-1">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.05),transparent_50%)]" />
           
           <div className="flex items-center justify-center p-7 border-b border-white/5 bg-gray-900/20 relative z-10 shrink-0 min-h-[76px]">
@@ -5370,7 +5371,7 @@ const DashboardView = React.memo(({
             )}
           </div>
 
-          <div className="divide-y divide-white/[0.03] relative z-10 overflow-y-auto max-h-[300px] lg:max-h-[460px] custom-scrollbar">
+          <div className="divide-y divide-white/[0.03] relative z-10 overflow-y-auto max-h-[300px] landscape:max-h-[350px] lg:max-h-[460px] custom-scrollbar">
             {splits.map((s, i) => (
               <div
                 key={`${s.label}-${i}`}
@@ -5416,7 +5417,7 @@ const DashboardView = React.memo(({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 landscape:grid-cols-4 gap-4">
         <BentoCard icon={Timer} title={t.elapsedTime} lowFX={lowFX}>
           <div className="text-5xl font-black font-mono italic tracking-tighter text-blue-400 leading-none mb-1">
             {formatTime(elapsedTime)}
@@ -5509,5 +5510,6 @@ const DashboardView = React.memo(({
 
       <div className="h-40" /> {/* Spacer for fixed controls */}
     </motion.div>
+    </>
   );
 });
