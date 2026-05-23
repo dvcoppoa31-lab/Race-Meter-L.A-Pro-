@@ -1042,7 +1042,7 @@ export default function App() {
         // Backward compatibility mappings if needed
         if (data.maintenanceMode !== undefined) setMaintenanceMode(data.maintenanceMode);
         if (data.systemName) setSystemName(data.systemName);
-        if (data.broadcastMessage) setBroadcastMessage(data.broadcastMessage);
+        if (data.broadcastMessage && data.broadcastMessage !== "test") setBroadcastMessage(data.broadcastMessage);
       }
     });
     return () => unsub();
@@ -1744,12 +1744,16 @@ export default function App() {
       }
 
       const userData = { ...newCustomerForm, username: targetUsername };
-      await setDoc(doc(db, "users", targetUsername.toLowerCase()), userData);
+      // Optimistic update
       setUsers((prev) => [...prev, userData]);
+      
+      await setDoc(doc(db, "users", targetUsername.toLowerCase()), userData);
       setNewCustomerForm({ username: "", password: "", role: "customer" });
       setAdminMessage(t.userCreated);
       setTimeout(() => setAdminMessage(""), 3000);
     } catch (err) {
+      // Revert optimistic update
+      setUsers((prev) => prev.filter(u => u.username !== targetUsername));
       console.error("Create user error:", err);
       setAdminMessage("Error creating user");
     }
@@ -1867,6 +1871,11 @@ export default function App() {
     if (userToDelete) {
       try {
         const lowerName = String(userToDelete).toLowerCase();
+        
+        // Optimistic update
+        const deletedUser = users.find(u => u.username === userToDelete);
+        setUsers((prev) => prev.filter((u) => u.username !== userToDelete));
+
         // Delete runs subcollection first
         const runsRef = collection(db, "users", lowerName, "runs");
         const runsSnapshot = await getDocs(runsRef);
@@ -1882,6 +1891,11 @@ export default function App() {
         setUserToDelete(null);
         setAdminMessage("User deleted successfully");
       } catch (err) {
+        // Revert optimistic update
+        if (userToDelete) {
+           const deletedUser = users.find(u => u.username === userToDelete);
+           if (deletedUser) setUsers((prev) => [...prev, deletedUser]);
+        }
         console.error("Delete user error:", err);
         setAdminMessage("Error deleting user");
       }
@@ -2710,8 +2724,12 @@ export default function App() {
       if (isLoggedIn && currentUser?.username) {
         const usernameKey = currentUser.username.toLowerCase();
         try {
+          // Optimistic update
+          setHistory((prev) => prev.filter((h) => h.id !== id));
           await deleteDoc(doc(db, "users", usernameKey, "runs", id));
         } catch (e) {
+          // Revert optimistic update on failure
+          setHistory((prev) => [...prev, history.find((h) => h.id === id)].filter(Boolean) as any);
           handleFirestoreError(e, OperationType.DELETE, `users/${usernameKey}/runs/${id}`);
         }
       } else {
@@ -3870,6 +3888,14 @@ export default function App() {
                                  }}
                                  className="flex-1 bg-black border border-gray-800 rounded-lg p-2 text-[10px] font-bold"
                                />
+                               <button 
+                                 onClick={() => {
+                                   const input = document.querySelector('input[placeholder="Enter system announcement..."]') as HTMLInputElement;
+                                   if (input) input.value = '';
+                                   updateBroadcast('');
+                                 }}
+                                 className="bg-gray-800 p-2 rounded-lg"
+                               ><X className="w-3 h-3 text-white" /></button>
                                <button 
                                  onClick={() => {
                                    const input = document.querySelector('input[placeholder="Enter system announcement..."]') as HTMLInputElement;
@@ -5286,8 +5312,8 @@ const DashboardView = React.memo(({
       key="dashboard"
       initial={lowFX ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={lowFX ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
-      transition={{ duration: lowFX ? 0.1 : 0.3, ease: [0.23, 1, 0.32, 1] }}
+      exit={lowFX ? { opacity: 0 } : { opacity: 0 }}
+      transition={{ duration: lowFX ? 0.05 : 0.1 }}
       className="flex-1 flex flex-col gap-4 pb-8 landscape:pb-4"
     >
       {/* Hero Section: Speed & Main Metrics */}
