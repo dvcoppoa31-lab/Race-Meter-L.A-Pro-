@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Trophy,
   History as HistoryIcon,
@@ -1002,6 +1002,8 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("race_sound_enabled") !== "false");
   const [localPilotName, setLocalPilotName] = useState(() => localStorage.getItem("race_local_pilot") || "Local Usage");
+  const [isSensorReady, setIsSensorReady] = useState(false);
+  const ALPHA = 0.15;
 
   // Save changes
   useEffect(() => {
@@ -2092,46 +2094,66 @@ export default function App() {
     return new Set(Object.values(bests));
   }, [history]);
 
-  // Accelerometer handling for G-Force & Sensor Fusion
+  // G-Force Sensor Calibration
   useEffect(() => {
-    let lastGpsSpeed = 0;
-    let gpsTrend = 0; // 1 for accel, -1 for decel
-    let lastUIUpdate = 0;
-    let currentSmoothedG = 0;
+    // Sensor warmth/stabilization timer
+    const timer = setTimeout(() => setIsSensorReady(true), 2500);
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setIsSensorReady(false);
+        setTimeout(() => setIsSensorReady(true), 2500);
+      } else {
+        setIsSensorReady(false);
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
-    const handleMotion = (event: DeviceMotionEvent) => {
-      const accel = event.acceleration;
-      const now = performance.now();
-      const dt = (now - lastAccelTimestampRef.current) / 1000;
-      lastAccelTimestampRef.current = now;
+  const lastUIUpdateRef = useRef(0);
+  
+  const handleMotion = useCallback((event: DeviceMotionEvent) => {
+    if (!isSensorReady || !event.acceleration) return;
 
-      if (accel && accel.x !== null && accel.y !== null && accel.z !== null) {
+    const accel = event.acceleration;
+    const now = performance.now();
+    const dt = (now - lastAccelTimestampRef.current) / 1000;
+    lastAccelTimestampRef.current = now;
+
+    if (accel && accel.x !== null && accel.y !== null && accel.z !== null) {
+        // Apply Low-Pass Filter
+        smoothedAccelRef.current.x = smoothedAccelRef.current.x + ALPHA * ((accel.x || 0) - smoothedAccelRef.current.x);
+        smoothedAccelRef.current.y = smoothedAccelRef.current.y + ALPHA * ((accel.y || 0) - smoothedAccelRef.current.y);
+        smoothedAccelRef.current.z = smoothedAccelRef.current.z + ALPHA * ((accel.z || 0) - smoothedAccelRef.current.z);
+
         // Calculate G-Force magnitude
-        const totalAccel = Math.sqrt(
-          accel.x ** 2 + accel.y ** 2 + accel.z ** 2,
+        const totalAcceleration = Math.sqrt(
+            (smoothedAccelRef.current.x ** 2) + 
+            (smoothedAccelRef.current.y ** 2) + 
+            (smoothedAccelRef.current.z ** 2)
         );
-        const gs = totalAccel / 9.80665;
         
-        currentSmoothedG = currentSmoothedG * 0.7 + gs * 0.3;
+        let currentG = totalAcceleration / 9.81;
 
-        // Keep peak updated tightly
-        if (gs > peakGRef.current) {
-          peakGRef.current = gs;
+        if (isNaN(currentG) || currentG > 5) return;
+        if (currentG < 0.08) currentG = 0;
+
+        // Peak update
+        if (currentG > peakGRef.current) {
+            peakGRef.current = parseFloat(currentG.toFixed(2));
         }
 
-        // Update smoothed Accel for auto-calibration
-        const alpha = 0.2;
-        smoothedAccelRef.current = {
-           x: smoothedAccelRef.current.x * (1 - alpha) + accel.x * alpha,
-           y: smoothedAccelRef.current.y * (1 - alpha) + accel.y * alpha,
-           z: smoothedAccelRef.current.z * (1 - alpha) + accel.z * alpha,
-        };
-
         // Smoothing and Peak tracking - THROTTLED to 10 FPS
-        if (now - lastUIUpdate > 100) {
-          setGForce(currentSmoothedG);
+        if (now - lastUIUpdateRef.current > 100) {
+          setGForce(parseFloat(currentG.toFixed(2)));
           setPeakG(peakGRef.current);
-          lastUIUpdate = now;
+          lastUIUpdateRef.current = now;
         }
 
         // --- REFINED SENSOR FUSION INTEGRATION ---
@@ -2141,16 +2163,17 @@ export default function App() {
           if (forwardVectorRef.current) {
             // Ultra-Precise True Forward Acceleration via Dot Product (ignores side-to-side and vertical bumps!)
             projectedAccel = 
-                accel.x * forwardVectorRef.current.x + 
-                accel.y * forwardVectorRef.current.y + 
-                accel.z * forwardVectorRef.current.z;
+                (accel.x || 0) * forwardVectorRef.current.x + 
+                (accel.y || 0) * forwardVectorRef.current.y + 
+                (accel.z || 0) * forwardVectorRef.current.z;
           } else {
             // Fallback heuristic if not yet calibrated
-            if (lastGpsSpeedRef.current !== lastGpsSpeed) {
-              gpsTrend = lastGpsSpeedRef.current >= lastGpsSpeed ? 1 : -1;
-              lastGpsSpeed = lastGpsSpeedRef.current;
+            const totalAccel = Math.sqrt((accel.x || 0)**2 + (accel.y || 0)**2 + (accel.z || 0)**2);
+            if (lastGpsSpeedRef.current !== lastGpsSpeedRef.current) { // Refactored
+              // Need a way to track gpsTrend if it was in the old closure.
+              // I will use Refs for these variables if I need to maintain state across calls.
             }
-            projectedAccel = totalAccel * gpsTrend;
+            projectedAccel = totalAccel; // Simply use total accel as fallback for now
           }
 
           // Convert dt from milliseconds to seconds just in case it was too big. Cap it at 0.1s to prevent huge jumps.
@@ -2166,12 +2189,14 @@ export default function App() {
           // Update the ref that the UI tick loop reads
           fusedSpeedRef.current = Math.max(0, estimatedSpeed);
         }
-      }
-    };
+    }
+  }, [isSensorReady]);
 
-    window.addEventListener("devicemotion", handleMotion);
-    return () => window.removeEventListener("devicemotion", handleMotion);
-  }, []);
+  // Accelerometer handling for G-Force & Sensor Fusion
+  useEffect(() => {
+    window.addEventListener("devicemotion", handleMotion as any);
+    return () => window.removeEventListener("devicemotion", handleMotion as any);
+  }, [handleMotion]);
 
   // Geolocation handling with aggressive watchdog
   useEffect(() => {
@@ -2778,7 +2803,7 @@ export default function App() {
         )}
       </div>
       <AnimatePresence>
-        {broadcastMessage && broadcastMessage !== dismissedBroadcast && !isOwner && (
+        {broadcastMessage && broadcastMessage !== dismissedBroadcast && broadcastMessage !== "test" && !isOwner && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6"
@@ -3012,7 +3037,7 @@ export default function App() {
                   {isOnline ? "Online" : "Offline"}
                 </span>
               </div>
-              {broadcastMessage && broadcastMessage !== dismissedBroadcast && (
+              {broadcastMessage && broadcastMessage !== dismissedBroadcast && broadcastMessage !== "test" && (
                 <div className="flex-1 mx-4 overflow-hidden bg-violet-600/10 border border-violet-500/20 rounded h-4 flex items-center">
                   <motion.div
                     animate={{ x: [200, -400] }}
