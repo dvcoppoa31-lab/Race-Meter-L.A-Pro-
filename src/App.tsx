@@ -94,6 +94,7 @@ import {
   limit,
   addDoc,
   serverTimestamp,
+  Timestamp,
   deleteField,
   collectionGroup
 } from 'firebase/firestore';
@@ -677,6 +678,8 @@ interface User {
   isBanned?: boolean;
   lastSeen?: number; // timestamp
   createdAt?: number;
+  isTrial?: boolean;
+  trialUntil?: number;
 }
 
 interface Split {
@@ -989,8 +992,10 @@ export default function App() {
   const [newCustomerForm, setNewCustomerForm] = useState<{
     username: string;
     password: string;
-    role: "admin" | "customer";
-  }>({ username: "", password: "", role: "customer" });
+    role: "admin" | "customer" | "owner";
+    isTrial?: boolean;
+    trialDurationHours?: number;
+  }>({ username: "", password: "", role: "customer", isTrial: false, trialDurationHours: 2 });
   const [adminMessage, setAdminMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "owner" | "admin" | "customer">("all");
@@ -1544,7 +1549,7 @@ export default function App() {
 
     try {
       setLoginError("");
-      const userDoc = await getDoc(doc(db, "users", inputUsername));
+      const userDoc = await getDocFromServer(doc(db, "users", inputUsername));
       
       if (!userDoc.exists()) {
         const localUser = users.find(u => (u.username || "").toLowerCase() === inputUsername && u.password === inputPassword);
@@ -1745,7 +1750,15 @@ export default function App() {
         return setAdminMessage("Only owner can create admin accounts");
       }
 
-      const userData = { ...newCustomerForm, username: targetUsername };
+      const userData: any = { ...newCustomerForm, username: targetUsername };
+      if (newCustomerForm.isTrial) {
+        const hours = newCustomerForm.trialDurationHours || 2;
+        userData.trialUntil = Timestamp.fromDate(new Date(Date.now() + hours * 60 * 60 * 1000));
+      } else {
+        userData.isTrial = false;
+        userData.trialUntil = null;
+      }
+      
       // Optimistic update
       setUsers((prev) => [...prev, userData]);
       
@@ -2223,9 +2236,13 @@ export default function App() {
     if (isLive) {
       let lastSpeedUpdate = performance.now();
       const updateSpeedSmoothly = () => {
-        // Fast UI refresh - no frame limit, relying on requestAnimationFrame sync
-        if (!isActiveRef.current && isLiveRef.current) {
-          setCurrentSpeed(fusedSpeedRef.current);
+        const now = performance.now();
+        const baseInterval = systemConfig.lowFX ? 250 : 80; // Throttle UI re-render rate to 4FPS / ~12.5FPS to save massive CPU cycles
+        if (now - lastSpeedUpdate > baseInterval) {
+          if (!isActiveRef.current && isLiveRef.current) {
+            setCurrentSpeed(fusedSpeedRef.current);
+          }
+          lastSpeedUpdate = now;
         }
         speedLoop = requestAnimationFrame(updateSpeedSmoothly);
       };
@@ -2481,10 +2498,14 @@ export default function App() {
                return; // break loop
             }
             
-            // Uncapped UI Sync at screen refresh rate
-            setElapsedTime(elapsed);
-            setDistanceCovered(totalDist);
-            setCurrentSpeed(currentFusedKmh);
+            // Throttled UI Sync to prevent overloading main thread with React renders
+            const uiInterval = systemConfig.lowFX ? 250 : 80; // 80ms (~12.5 FPS) is extremely fluid, responsive and efficient
+            if (now - lastUpdate > uiInterval || splitReached) {
+              setElapsedTime(elapsed);
+              setDistanceCovered(totalDist);
+              setCurrentSpeed(currentFusedKmh);
+              lastUpdate = now;
+            }
             
             if (isLiveRef.current && isActiveRef.current) {
               timerRef.current = requestAnimationFrame(tick);
@@ -3884,7 +3905,29 @@ export default function App() {
                               />
                             </div>
                             <div className="col-span-2 space-y-2">
-                              <label className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Performance (For Low-end devices)</label>
+                              <label className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Performance / Diagnostics (Press to Simulate)
+                               </label>
+                               <button 
+                                 onClick={() => {
+                                   let elapsed = 0;
+                                   const duration = 7000;
+                                   const startTime = performance.now();
+                                   const interval = setInterval(() => {
+                                       const now = performance.now();
+                                       elapsed = now - startTime;
+                                       if (elapsed >= duration) {
+                                           setCurrentSpeed(124);
+                                           clearInterval(interval);
+                                       } else {
+                                           setCurrentSpeed(Math.round(124 * (elapsed / duration)));
+                                       }
+                                   }, 50);
+                                 }}
+                                 className="w-full py-2 mb-2 bg-purple-600 border border-purple-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-purple-500/20"
+                               >
+                                 Simulate Speed 124 KPH (7s)
+                               </button>
+                               <label className="text-[9px] text-gray-400 font-black uppercase tracking-widest">
                               <button 
                                 onClick={() => {
                                   const newVal = !systemConfig.lowFX;
@@ -3899,6 +3942,7 @@ export default function App() {
                                   {systemConfig.lowFX ? 'LOW FX MODE: ON (STABLE)' : 'LOW FX MODE: OFF (HIGH)'}
                                 </span>
                               </button>
+                            </label>
                             </div>
                           </div>
                           
@@ -4118,6 +4162,23 @@ export default function App() {
                             </button>
                           ))}
                         </div>
+                        
+                        <div className="flex items-center gap-2 mt-3 cursor-pointer" onClick={() => setNewCustomerForm(prev => ({...prev, isTrial: !prev.isTrial}))}>
+                           <div className={`w-4 h-4 rounded border flex items-center justify-center ${newCustomerForm.isTrial ? 'bg-violet-500 border-violet-500' : 'border-gray-700'}`}>
+                              {newCustomerForm.isTrial && <CheckCircle2 className="w-3 h-3 text-white" />}
+                           </div>
+                           <span className="text-[10px] font-bold text-gray-400 uppercase">Trial Account (Hours)</span>
+                        </div>
+                        {newCustomerForm.isTrial && (
+                          <input
+                            type="number"
+                            min="1"
+                            value={newCustomerForm.trialDurationHours || 2}
+                            onChange={(e) => setNewCustomerForm(prev => ({ ...prev, trialDurationHours: parseInt(e.target.value) || 2 }))}
+                            className="bg-gray-950 border border-gray-800 rounded p-2 text-white text-[10px] mt-2 w-full"
+                            placeholder="Trial Duration (Hours)"
+                          />
+                        )}
 
                         {adminMessage && (
                           <div
@@ -5360,17 +5421,22 @@ const DashboardView = React.memo(({
             {t.currentSpeed}
           </div>
           
-          <div className="relative transform-gpu will-change-transform flex items-center justify-center">
-            <motion.div 
-              key={`speed-${Math.round(currentSpeed)}`}
-              initial={{ scale: 0.95, opacity: 0.8 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="text-[10rem] font-black italic tracking-tighter tabular-nums leading-none drop-shadow-[0_0_30px_rgba(139,92,246,0.4)]"
-            >
-              {Math.round(currentSpeed)}
-            </motion.div>
-            <div className="absolute -right-8 bottom-6 text-xl font-black text-gray-600 italic tracking-tighter">
+          <div className="relative transform-gpu will-change-transform flex flex-col items-center justify-center">
+            {!lowFX ? (
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0.9 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.15 }}
+                className="text-[10rem] font-black italic tracking-tighter tabular-nums leading-none drop-shadow-[0_0_30px_rgba(139,92,246,0.35)]"
+              >
+                {Math.round(currentSpeed)}
+              </motion.div>
+            ) : (
+              <div className="text-[10rem] font-black italic tracking-tighter tabular-nums leading-none text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+                {Math.round(currentSpeed)}
+              </div>
+            )}
+            <div className="text-xl font-black text-gray-500 italic tracking-widest mt-1">
               KPH
             </div>
           </div>
@@ -5498,12 +5564,19 @@ const DashboardView = React.memo(({
             <div className="text-2xl font-black text-violet-400 font-mono italic leading-none">{peakG.toFixed(2)}</div>
           </div>
         </div>
-        <div className="mt-4 h-2 bg-black/40 rounded-full p-0.5 border border-white/5">
-          <motion.div
-            className="h-full bg-gradient-to-r from-violet-600 to-indigo-500 rounded-full shadow-[0_0_15px_rgba(139,92,246,0.6)]"
-            animate={{ width: `${Math.min(Math.abs(gForce) * 50, 100)}%` }}
-            transition={{ type: "spring", stiffness: 100, damping: 15 }}
-          />
+        <div className="mt-4 h-2 bg-black/40 rounded-full p-0.5 border border-white/5 overflow-hidden">
+          {!lowFX ? (
+            <motion.div
+              className="h-full bg-gradient-to-r from-violet-600 to-indigo-500 rounded-full shadow-[0_0_15px_rgba(139,92,246,0.65)]"
+              animate={{ width: `${Math.min(Math.abs(gForce) * 50, 100)}%` }}
+              transition={{ type: "tween", duration: 0.1 }}
+            />
+          ) : (
+            <div
+              className="h-full bg-violet-600 rounded-full transition-all duration-150 ease-out"
+              style={{ width: `${Math.min(Math.abs(gForce) * 50, 100)}%` }}
+            />
+          )}
         </div>
       </BentoCard>
 

@@ -8,7 +8,9 @@
         "username": { "type": "string" },
         "password": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "customer"] },
-        "boundDeviceId": { "type": "string" }
+        "boundDeviceId": { "type": "string" },
+        "isTrial": { "type": "boolean" },
+        "trialUntil": { "type": "timestamp" }
       },
       "required": ["username", "password", "role"]
     },

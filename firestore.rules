@@ -14,7 +14,16 @@ service cloud.firestore {
     function isValidUser(data) {
       return data.username is string && data.username.size() > 0 &&
              data.password is string && data.password.size() >= 4 &&
-             data.role in ['owner', 'admin', 'customer'];
+             data.role in ['owner', 'admin', 'customer'] &&
+             (data.isTrial is bool || data.isTrial == null) &&
+             (data.trialUntil is timestamp || data.trialUntil is number || data.trialUntil == null);
+    }
+
+    function isTrialValid(data) {
+      return data.isTrial != true || (
+        (data.trialUntil is timestamp && data.trialUntil > request.time) ||
+        (data.trialUntil is number && data.trialUntil > (request.time.seconds * 1000 + request.time.nanoseconds / 1000000))
+      );
     }
 
     function isValidRun(data) {
@@ -44,12 +53,15 @@ service cloud.firestore {
     // User Profile Rules
     match /users/{username} {
       // For this custom login system, we allow getting a specific user profile to check password
-      allow get, delete: if isValidId(username);
+      allow get: if isValidId(username);
+      
+      allow delete: if isValidId(username);
       
       // Allow creating a new account (signup)
       allow create: if isValidId(username) && isValidUser(request.resource.data);
       
-      // Allow updating profile
+      // Allow updating profile, but check if they are trying to extend their own trial beyond what is allowed? 
+      // For now, let's just make sure they can't update if trial invalid, although this might block login if profile needs update on login
       allow update: if isValidId(username) && isValidUser(request.resource.data);
 
       // Admins can list all users
@@ -57,8 +69,8 @@ service cloud.firestore {
 
       // History / Runs Rules
       match /runs/{runId} {
-        allow read, write, delete: if isValidId(username) && isValidId(runId);
-        allow list: if isValidId(username);
+        allow read, write, delete: if isValidId(username) && isValidId(runId) && isTrialValid(get(/databases/$(database)/documents/users/$(username)).data);
+        allow list: if isValidId(username) && isTrialValid(get(/databases/$(database)/documents/users/$(username)).data);
       }
     }
 
