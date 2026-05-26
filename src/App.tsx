@@ -3013,7 +3013,7 @@ export default function App() {
                       <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
                       <input
                         type="text"
-                        value={loginForm.username}
+                        value={loginForm.username || ""}
                         onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
                         placeholder={t.username.toUpperCase()}
                         className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:border-violet-500/50"
@@ -3026,7 +3026,7 @@ export default function App() {
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
                       <input
                         type="password"
-                        value={loginForm.password}
+                        value={loginForm.password || ""}
                         onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
                         placeholder={t.password.toUpperCase()}
                         className="w-full bg-gray-950/80 border border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:border-violet-500/50"
@@ -4251,14 +4251,14 @@ export default function App() {
                           <form onSubmit={handleUpdateUserDetails} className="space-y-3">
                             <input 
                               type="text" 
-                              value={editForm.username}
+                              value={editForm.username || ""}
                               onChange={(e) => setEditForm({...editForm, username: e.target.value})}
                               placeholder="New Username"
                               className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm"
                             />
                             <input 
                               type="password" 
-                              value={editForm.password}
+                              value={editForm.password || ""}
                               onChange={(e) => setEditForm({...editForm, password: e.target.value})}
                               placeholder="New Password"
                               className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm"
