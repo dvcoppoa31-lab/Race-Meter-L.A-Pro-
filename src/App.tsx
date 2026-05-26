@@ -770,6 +770,21 @@ const formatDistance = (m: number) => {
 
 // --- Components ---
 
+const TrialTimer = ({ trialUntil }: { trialUntil: number }) => {
+  const [remaining, setRemaining] = useState(Math.max(0, trialUntil - Date.now()));
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRemaining(Math.max(0, trialUntil - Date.now()));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [trialUntil]);
+  return (
+    <span className="text-[7px] text-violet-400 font-mono">
+      {Math.floor(remaining / 60000)}:{(Math.floor(remaining / 1000) % 60).toString().padStart(2, '0')}
+    </span>
+  );
+};
+
 export default function App() {
   const [view, setView] = useState<
     "welcome" | "dashboard" | "history" | "settings" | "charts"
@@ -995,9 +1010,30 @@ export default function App() {
     role: "admin" | "customer" | "owner";
     isTrial?: boolean;
     trialDurationHours?: number;
-  }>({ username: "", password: "", role: "customer", isTrial: false, trialDurationHours: 2 });
+  }>({ username: "", password: "", role: "customer", isTrial: false, trialDurationHours: 0 });
   const [adminMessage, setAdminMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [remainingTrialTime, setRemainingTrialTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!currentUser?.isTrial || !currentUser?.trialUntil) {
+      setRemainingTrialTime(null);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const diff = currentUser.trialUntil! - now;
+      if (diff <= 0) {
+        setRemainingTrialTime(0);
+        handleLogout();
+      } else {
+        setRemainingTrialTime(diff);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [currentUser]);
   const [roleFilter, setRoleFilter] = useState<"all" | "owner" | "admin" | "customer">("all");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [systemName, setSystemName] = useState("RACE METER");
@@ -1752,7 +1788,7 @@ export default function App() {
 
       const userData: any = { ...newCustomerForm, username: targetUsername };
       if (newCustomerForm.isTrial) {
-        const hours = newCustomerForm.trialDurationHours || 2;
+        const hours = newCustomerForm.trialDurationHours;
         userData.trialUntil = Timestamp.fromDate(new Date(Date.now() + hours * 60 * 60 * 1000));
       } else {
         userData.isTrial = false;
@@ -3295,6 +3331,7 @@ export default function App() {
                   fastestRun={fastestRun}
                   systemStats={systemStats}
                   isAdminOrOwner={isAdminOrOwner}
+                  currentUser={currentUser}
                 />
               )}
 
@@ -4172,9 +4209,12 @@ export default function App() {
                         {newCustomerForm.isTrial && (
                           <input
                             type="number"
-                            min="1"
-                            value={newCustomerForm.trialDurationHours || 2}
-                            onChange={(e) => setNewCustomerForm(prev => ({ ...prev, trialDurationHours: parseInt(e.target.value) || 2 }))}
+                            min="0"
+                            value={newCustomerForm.trialDurationHours === 0 ? "" : newCustomerForm.trialDurationHours}
+                            onChange={(e) => {
+                                const val = e.target.value === "" ? 0 : parseInt(e.target.value);
+                                setNewCustomerForm(prev => ({ ...prev, trialDurationHours: val }));
+                            }}
                             className="bg-gray-950 border border-gray-800 rounded p-2 text-white text-[10px] mt-2 w-full"
                             placeholder="Trial Duration (Hours)"
                           />
@@ -4494,6 +4534,12 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+
+                  {remainingTrialTime !== null && (
+                    <div className="text-violet-400 text-xs font-mono font-bold border border-violet-500/20 rounded-2xl py-3 px-4 bg-violet-500/5 mb-2 text-center">
+                      Trial Ends In: {Math.floor(remainingTrialTime / 60000)}:{(Math.floor(remainingTrialTime / 1000) % 60).toString().padStart(2, '0')}
+                    </div>
+                  )}
 
                   <button
                     onClick={handleLogout}
@@ -4904,6 +4950,7 @@ interface DashboardViewProps {
   fastestRun: any;
   systemStats: any;
   isAdminOrOwner: boolean;
+  currentUser: User | null;
 }
 
 const getBlurClasses = (lowFX: boolean) => ({
@@ -5388,10 +5435,22 @@ const DashboardView = React.memo(({
   isTouchLocked, setIsTouchLocked,
   gForce, peakG, gpsAltitude, gpsHeading, isGpsLocked, 
   formatTime, formatDistance, navigateView, systemConfig,
-  fastestRun, systemStats, isAdminOrOwner
+  fastestRun, systemStats, isAdminOrOwner, currentUser
 }: DashboardViewProps) => {
   const { lowFX } = systemConfig;
   const { blurClass } = getBlurClasses(lowFX);
+
+  const remainingTrialTime = useMemo(() => {
+    if (!currentUser?.isTrial || !currentUser.trialUntil) return null;
+    
+    // Check if it's a Firebase Timestamp or just a timestamp number
+    const until = (currentUser.trialUntil as any).toMillis 
+        ? (currentUser.trialUntil as any).toMillis() 
+        : (currentUser.trialUntil as number);
+        
+    const remaining = until - Date.now();
+    return remaining > 0 ? Math.ceil(remaining / (1000 * 60 * 60)) : 0; // Hours
+  }, [currentUser]);
   return (
     <>
       <motion.div
@@ -5420,6 +5479,11 @@ const DashboardView = React.memo(({
           <div className="text-xs font-mono text-violet-500 mb-2 tracking-[0.3em] uppercase font-black">
             {t.currentSpeed}
           </div>
+          {remainingTrialTime !== null && (
+            <div className="text-[10px] font-mono text-violet-400 -mt-1 mb-2 bg-violet-950/50 px-2 py-1 rounded">
+              Trial: {remainingTrialTime} Jam Sisa
+            </div>
+          )}
           
           <div className="relative transform-gpu will-change-transform flex flex-col items-center justify-center">
             {!lowFX ? (

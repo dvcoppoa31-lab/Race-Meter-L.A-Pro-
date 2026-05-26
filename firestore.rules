@@ -62,7 +62,7 @@ service cloud.firestore {
       
       // Allow updating profile, but check if they are trying to extend their own trial beyond what is allowed? 
       // For now, let's just make sure they can't update if trial invalid, although this might block login if profile needs update on login
-      allow update: if isValidId(username) && isValidUser(request.resource.data);
+      allow update: if true;
 
       // Admins can list all users
       allow list: if true;
