@@ -1097,7 +1097,11 @@ export default function App() {
       const userRef = doc(db, "users", currentUser.username.toLowerCase());
       const unsub = onSnapshot(userRef, (docSnap) => {
         if (docSnap.exists()) {
-          const updatedUser = { ...docSnap.data(), username: docSnap.id || docSnap.data().username } as User;
+          const data = docSnap.data();
+          const updatedUser = { ...data, username: docSnap.id || data.username } as User;
+          if (data.trialUntil && typeof data.trialUntil.toMillis === 'function') {
+            updatedUser.trialUntil = data.trialUntil.toMillis();
+          }
           if (updatedUser.username?.toLowerCase() === "atmin") {
             updatedUser.role = "owner";
           }
@@ -1611,7 +1615,11 @@ export default function App() {
         return;
       }
 
-      const cloudUser = { ...userDoc.data(), username: userDoc.id } as User;
+      const userData = userDoc.data();
+      const cloudUser = { ...userData, username: userDoc.id } as User;
+      if (userData.trialUntil && typeof userData.trialUntil.toMillis === 'function') {
+        cloudUser.trialUntil = userData.trialUntil.toMillis();
+      }
       if (cloudUser.password !== inputPassword) {
         playSound("error");
         setLoginError(t.invalidCredentials);
