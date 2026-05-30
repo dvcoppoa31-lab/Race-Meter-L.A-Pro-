@@ -785,6 +785,13 @@ const TrialTimer = ({ trialUntil }: { trialUntil: number }) => {
   );
 };
 
+const formatDuration = (ms: number) => {
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
 export default function App() {
   const [view, setView] = useState<
     "welcome" | "dashboard" | "history" | "settings" | "charts"
@@ -1021,11 +1028,16 @@ export default function App() {
       return;
     }
 
-    const timer = setInterval(() => {
+    const timer = setInterval(async () => {
       const now = Date.now();
-      const diff = currentUser.trialUntil! - now;
+      const trialUntilMillis = currentUser.trialUntil?.toMillis 
+        ? currentUser.trialUntil.toMillis() 
+        : currentUser.trialUntil;
+      
+      const diff = trialUntilMillis - now;
       if (diff <= 0) {
         setRemainingTrialTime(0);
+        await deleteDoc(doc(db, "users", currentUser.username.toLowerCase()));
         handleLogout();
       } else {
         setRemainingTrialTime(diff);
@@ -1112,6 +1124,8 @@ export default function App() {
           if (sessionStorage.getItem("race_logged_in") === "true") {
             sessionStorage.setItem("race_current_user", JSON.stringify(updatedUser));
           }
+        } else {
+          handleLogout();
         }
       }, (error) => {
         console.error("User sync error:", error);
@@ -1794,14 +1808,14 @@ export default function App() {
         return setAdminMessage("Only owner can create admin accounts");
       }
 
-      const userData: any = { ...newCustomerForm, username: targetUsername };
-      if (newCustomerForm.isTrial) {
-        const hours = newCustomerForm.trialDurationHours;
-        userData.trialUntil = Timestamp.fromDate(new Date(Date.now() + hours * 60 * 60 * 1000));
-      } else {
-        userData.isTrial = false;
-        userData.trialUntil = null;
-      }
+      const userData: any = {
+        username: targetUsername,
+        password: newCustomerForm.password,
+        role: newCustomerForm.role,
+        isTrial: newCustomerForm.isTrial || false,
+        trialUntil: newCustomerForm.isTrial ? (Timestamp.fromDate(new Date(Date.now() + (newCustomerForm.trialDurationHours || 0) * 60 * 60 * 1000))) : null,
+        lastSeen: Date.now()
+      };
       
       // Optimistic update
       setUsers((prev) => [...prev, userData]);
@@ -2219,26 +2233,29 @@ export default function App() {
           
           if (forwardVectorRef.current) {
             // Ultra-Precise True Forward Acceleration via Dot Product (ignores side-to-side and vertical bumps!)
-            projectedAccel = 
-                (accel.x || 0) * forwardVectorRef.current.x + 
-                (accel.y || 0) * forwardVectorRef.current.y + 
-                (accel.z || 0) * forwardVectorRef.current.z;
+          const smoothedX = smoothedAccelRef.current.x;
+          const smoothedY = smoothedAccelRef.current.y;
+          const smoothedZ = smoothedAccelRef.current.z;
+          
+          projectedAccel = 
+            smoothedX * forwardVectorRef.current.x + 
+            smoothedY * forwardVectorRef.current.y + 
+            smoothedZ * forwardVectorRef.current.z;
           } else {
             // Fallback heuristic if not yet calibrated
-            const totalAccel = Math.sqrt((accel.x || 0)**2 + (accel.y || 0)**2 + (accel.z || 0)**2);
-            if (lastGpsSpeedRef.current !== lastGpsSpeedRef.current) { // Refactored
-              // Need a way to track gpsTrend if it was in the old closure.
-              // I will use Refs for these variables if I need to maintain state across calls.
-            }
+            const totalAccel = Math.sqrt(smoothedAccelRef.current.x**2 + smoothedAccelRef.current.y**2 + smoothedAccelRef.current.z**2);
             projectedAccel = totalAccel; // Simply use total accel as fallback for now
           }
+
+          // Deadzone to prevent integration creep when stationary
+          const effectiveAccel = Math.abs(projectedAccel) < 0.4 ? 0 : projectedAccel;
 
           // Convert dt from milliseconds to seconds just in case it was too big. Cap it at 0.1s to prevent huge jumps.
           const safeDt = Math.min(dt, 0.1);
 
           // Add to speed (v = u + at). 
           const frictionDecay = forwardVectorRef.current ? 0.999 : 0.98; // Very low decay if confident
-          accelIntegrationRef.current = (accelIntegrationRef.current + projectedAccel * safeDt) * frictionDecay;
+          accelIntegrationRef.current = (accelIntegrationRef.current + effectiveAccel * safeDt) * frictionDecay;
           
           // Fused speed is the last known good GPS speed + the change measured by accelerometer
           const estimatedSpeed = (lastGpsSpeedRef.current + accelIntegrationRef.current) * 3.6; // convert to km/h
@@ -2777,6 +2794,7 @@ export default function App() {
         isLiveRef.current = false;
         setIsTouchLocked(false);
         playSound("click");
+        setCurrentSpeed(0);
 
         // Small delay to let user see "SAVED" state
         setTimeout(() => setIsSaving(false), 2000);
@@ -4212,7 +4230,7 @@ export default function App() {
                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${newCustomerForm.isTrial ? 'bg-violet-500 border-violet-500' : 'border-gray-700'}`}>
                               {newCustomerForm.isTrial && <CheckCircle2 className="w-3 h-3 text-white" />}
                            </div>
-                           <span className="text-[10px] font-bold text-gray-400 uppercase">Trial Account (Hours)</span>
+                           <span className="text-[10px] font-bold text-gray-400 uppercase">Akun Sewa (Jam)</span>
                         </div>
                         {newCustomerForm.isTrial && (
                           <input
@@ -4224,7 +4242,7 @@ export default function App() {
                                 setNewCustomerForm(prev => ({ ...prev, trialDurationHours: val }));
                             }}
                             className="bg-gray-950 border border-gray-800 rounded p-2 text-white text-[10px] mt-2 w-full"
-                            placeholder="Trial Duration (Hours)"
+                            placeholder="Durasi Sewa (Jam)"
                           />
                         )}
 
@@ -4545,7 +4563,7 @@ export default function App() {
 
                   {remainingTrialTime !== null && (
                     <div className="text-violet-400 text-xs font-mono font-bold border border-violet-500/20 rounded-2xl py-3 px-4 bg-violet-500/5 mb-2 text-center">
-                      Trial Ends In: {Math.floor(remainingTrialTime / 60000)}:{(Math.floor(remainingTrialTime / 1000) % 60).toString().padStart(2, '0')}
+                      Sewa Berakhir Dalam: {formatDuration(remainingTrialTime)}
                     </div>
                   )}
 
@@ -5448,7 +5466,7 @@ const DashboardView = React.memo(({
   const { lowFX } = systemConfig;
   const { blurClass } = getBlurClasses(lowFX);
 
-  const remainingTrialTime = useMemo(() => {
+  const [remainingTrialTime, setRemainingTrialTime] = useState<number | null>(() => {
     if (!currentUser?.isTrial || !currentUser.trialUntil) return null;
     
     // Check if it's a Firebase Timestamp or just a timestamp number
@@ -5457,7 +5475,22 @@ const DashboardView = React.memo(({
         : (currentUser.trialUntil as number);
         
     const remaining = until - Date.now();
-    return remaining > 0 ? Math.ceil(remaining / (1000 * 60 * 60)) : 0; // Hours
+    return remaining > 0 ? remaining : 0;
+  });
+
+  useEffect(() => {
+    if (!currentUser?.isTrial || !currentUser.trialUntil) return;
+
+    const interval = setInterval(() => {
+      const until = (currentUser.trialUntil as any).toMillis 
+          ? (currentUser.trialUntil as any).toMillis() 
+          : (currentUser.trialUntil as number);
+      
+      const remaining = until - Date.now();
+      setRemainingTrialTime(remaining > 0 ? remaining : 0);
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, [currentUser]);
   return (
     <>
@@ -5489,7 +5522,7 @@ const DashboardView = React.memo(({
           </div>
           {remainingTrialTime !== null && (
             <div className="text-[10px] font-mono text-violet-400 -mt-1 mb-2 bg-violet-950/50 px-2 py-1 rounded">
-              Trial: {remainingTrialTime} Jam Sisa
+              Sewa: {formatDuration(remainingTrialTime)} Sisa
             </div>
           )}
           

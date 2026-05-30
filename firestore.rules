@@ -16,7 +16,8 @@ service cloud.firestore {
              data.password is string && data.password.size() >= 4 &&
              data.role in ['owner', 'admin', 'customer'] &&
              (data.isTrial is bool || data.isTrial == null) &&
-             (data.trialUntil is timestamp || data.trialUntil is number || data.trialUntil == null);
+             (data.trialUntil is timestamp || data.trialUntil is number || data.trialUntil == null) &&
+             (data.lastSeen is number || data.lastSeen == null);
     }
 
     function isTrialValid(data) {
@@ -69,7 +70,8 @@ service cloud.firestore {
 
       // History / Runs Rules
       match /runs/{runId} {
-        allow read, write, delete: if isValidId(username) && isValidId(runId) && isTrialValid(get(/databases/$(database)/documents/users/$(username)).data);
+        allow read, write: if isValidId(username) && isValidId(runId) && isTrialValid(get(/databases/$(database)/documents/users/$(username)).data);
+        allow delete: if isValidId(username) && isValidId(runId);
         allow list: if isValidId(username) && isTrialValid(get(/databases/$(database)/documents/users/$(username)).data);
       }
     }
