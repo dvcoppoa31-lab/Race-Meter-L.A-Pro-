@@ -846,9 +846,14 @@ export default function App() {
   const [splits, setSplits] = useState<Split[]>([]);
   const [history, setHistory] = useState<RaceRun[]>(() => {
     const saved = localStorage.getItem("race_history");
+    if (!saved) {
+      return [];
+    }
     try {
-      return saved ? JSON.parse(saved) : [];
+      return JSON.parse(saved);
     } catch {
+      localStorage.setItem("race_history_backup", saved);
+      console.error("History corrupt, backup saved to race_history_backup");
       return [];
     }
   });
@@ -1786,6 +1791,17 @@ export default function App() {
     sessionStorage.removeItem("race_logged_in");
     sessionStorage.removeItem("race_current_user");
     setView("welcome");
+  };
+
+  const handleAccountExpiration = async () => {
+    if (currentUser?.username) {
+      try {
+        await deleteDoc(doc(db, "users", currentUser.username.toLowerCase()));
+        handleLogout();
+      } catch (error) {
+        console.error("Error deleting expired account:", error);
+      }
+    }
   };
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
@@ -5403,7 +5419,7 @@ const RecordsTable = React.memo(({
 
 const formatLastSeen = (lastSeen: number) => {
   const diff = Date.now() - lastSeen;
-  const minutes = Math.floor(diff / 60000);
+  const minutes = Math.floor(diff / 60000); // fixed
   if (minutes < 1) return "Just now";
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
@@ -5481,13 +5497,20 @@ const DashboardView = React.memo(({
   useEffect(() => {
     if (!currentUser?.isTrial || !currentUser.trialUntil) return;
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       const until = (currentUser.trialUntil as any).toMillis 
           ? (currentUser.trialUntil as any).toMillis() 
           : (currentUser.trialUntil as number);
       
       const remaining = until - Date.now();
-      setRemainingTrialTime(remaining > 0 ? remaining : 0);
+      
+      if (remaining <= 0) {
+        setRemainingTrialTime(0);
+        await handleAccountExpiration();
+        return;
+      }
+      
+      setRemainingTrialTime(remaining);
     }, 1000);
 
     return () => clearInterval(interval);
