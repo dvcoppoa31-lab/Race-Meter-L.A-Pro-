@@ -829,6 +829,7 @@ export default function App() {
       : "id";
   });
   const [isLive, setIsLive] = useState(false);
+  const [countdownValue, setCountdownValue] = useState<number | null>(null);
   const [isActive, setIsActive] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(
@@ -1086,6 +1087,8 @@ export default function App() {
     minAccuracy: 20,
     gpsWatchdogSpeed: 5000,
     strictGpsMode: false,
+    startDelaySeconds: 0,
+    startDelayEnabled: false,
     lowFX: false
   });
 
@@ -1467,13 +1470,15 @@ export default function App() {
     click: "https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3",
     success: "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3",
     error: "https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3",
-    start: "https://assets.mixkit.co/active_storage/sfx/1070/1070-preview.mp3",
-    nav: "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"
+    start: "https://assets.mixkit.co/active_storage/sfx/2205/2205-preview.mp3",
+    nav: "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3",
+    countdown: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3",
+    shot: "https://assets.mixkit.co/active_storage/sfx/2655/2655-preview.mp3"
   };
 
   const audioCache = useRef<{ [key: string]: HTMLAudioElement }>({});
 
-  const playSound = (type: keyof typeof SOUNDS) => {
+  const playSound = (type: keyof typeof SOUNDS, durationMs?: number) => {
     if (!soundEnabled) return;
     
     try {
@@ -1486,6 +1491,13 @@ export default function App() {
         audio.currentTime = 0;
         audio.volume = 0.5;
         audio.play().catch(() => {});
+        
+        if (durationMs) {
+          setTimeout(() => {
+            audio.pause();
+            audio.currentTime = 0;
+          }, durationMs);
+        }
       }
     } catch (err) {
       console.warn("Audio playback failed", err);
@@ -2079,6 +2091,7 @@ export default function App() {
   const startPointRef = useRef<GPSPoint | null>(null);
   const lastPointRef = useRef<GPSPoint | null>(null);
   const timerRef = useRef<number | null>(null);
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pointsRef = useRef<GPSPoint[]>([]);
   const sessionTelemetryRef = useRef<
     { time: number; speed: number; accel: number }[]
@@ -2140,6 +2153,7 @@ export default function App() {
 
   // --- SENSOR FUSION REFS ---
   const fusedSpeedRef = useRef<number>(0); 
+  const isLiveStartedAtRef = useRef<number>(0); // Added for delayed start
   const lastAccelTimestampRef = useRef<number>(performance.now());
   const accelIntegrationRef = useRef<number>(0);
   const lastGpsSpeedRef = useRef<number>(0);
@@ -2151,7 +2165,12 @@ export default function App() {
 
   // Save changes
   useEffect(() => {
-    localStorage.setItem("race_history", JSON.stringify(history));
+    try {
+      // Only keep the latest 100 runs to avoid quota issues
+      localStorage.setItem("race_history", JSON.stringify(history.slice(0, 100)));
+    } catch (e) {
+      console.error("Failed to save history to localStorage:", e);
+    }
   }, [history]);
 
   useEffect(() => {
@@ -2273,8 +2292,8 @@ export default function App() {
           const frictionDecay = forwardVectorRef.current ? 0.999 : 0.98; // Very low decay if confident
           accelIntegrationRef.current = (accelIntegrationRef.current + effectiveAccel * safeDt) * frictionDecay;
           
-          // Fused speed is the last known good GPS speed + the change measured by accelerometer
-          const estimatedSpeed = (lastGpsSpeedRef.current + accelIntegrationRef.current) * 3.6; // convert to km/h
+          // Fused speed is the last known good GPS speed (ignore accelerometer noise)
+          const estimatedSpeed = lastGpsSpeedRef.current * 3.6; // convert to km/h
           
           // Update the ref that the UI tick loop reads
           fusedSpeedRef.current = Math.max(0, estimatedSpeed);
@@ -2385,7 +2404,7 @@ export default function App() {
               sessionHzValuesRef.current.push(hz);
             }
             
-            const rawSpeedKmr = (speed !== null && speed > 0.4 ? speed : 0) * 3.6;
+            const rawSpeedKmr = (speed !== null && speed > 1.0 ? speed : 0) * 3.6;
             
             // Ultra-precise orientation auto-calibration using device linear acceleration
             const dv = rawSpeedKmr - lastGpsSpeedRef.current;
@@ -2417,7 +2436,7 @@ export default function App() {
         setIsGpsLocked(locked);
 
         // --- SPEED UI UPDATES ---
-        const filteredSpeed = speed !== null && speed > 0.4 ? speed : 0;
+        const filteredSpeed = speed !== null && speed > 1.0 ? speed : 0;
         
         // RESET SENSOR FUSION WITH GROUND TRUTH
         // GPS Speed is our anchor. When it updates, we reset the accelerometer integration
@@ -2472,7 +2491,7 @@ export default function App() {
         });
 
         // Auto-start logic: tighter threshold to prevent jitter starts
-        if (!isActiveRef.current && speedKmr > 2.0) {
+        if (!isActiveRef.current && isLiveRef.current && (performance.now() - isLiveStartedAtRef.current > 3000) && speedKmr > 15.0) {
           setIsActive(true);
           isActiveRef.current = true;
           setIsTouchLocked(true); // Auto-lock touch on start
@@ -2623,28 +2642,51 @@ export default function App() {
   };
 
   const handleStart = () => {
-    setIsLive(true);
-    setIsActive(false);
-    isActiveRef.current = false;
-    isLiveRef.current = true;
-    setMaxSpeed(0);
-    maxSpeedRef.current = 0;
-    setPeakG(0);
-    peakGRef.current = 0;
-    setElapsedTime(0);
-    elapsedTimeRef.current = 0;
-    setDistanceCovered(0);
-    distanceCoveredRef.current = 0;
-    setSessionMaxAccuracy(null);
-    sessionTelemetryRef.current = [];
-    sessionHzValuesRef.current = [];
-    setSplits(
-      selectedTargets.map((t) => ({
-        ...t,
-        time: undefined,
-        speedAtSplit: undefined,
-      })),
-    );
+    const startActualLive = () => {
+      isLiveStartedAtRef.current = performance.now(); // Record start time
+      setIsLive(true);
+      setIsActive(false);
+      isActiveRef.current = false;
+      isLiveRef.current = true;
+      setMaxSpeed(0);
+      maxSpeedRef.current = 0;
+      setPeakG(0);
+      peakGRef.current = 0;
+      setElapsedTime(0);
+      elapsedTimeRef.current = 0;
+      setDistanceCovered(0);
+      distanceCoveredRef.current = 0;
+      setSessionMaxAccuracy(null);
+      sessionTelemetryRef.current = [];
+      sessionHzValuesRef.current = [];
+      setSplits(
+        selectedTargets.map((t) => ({
+          ...t,
+          time: undefined,
+          speedAtSplit: undefined,
+        })),
+      );
+      pointsRef.current = [];
+    };
+
+    if (systemConfig.startDelayEnabled && systemConfig.startDelaySeconds && systemConfig.startDelaySeconds > 0) {
+      setCountdownValue(systemConfig.startDelaySeconds);
+      playSound("countdown");
+      countdownTimerRef.current = setInterval(() => {
+        setCountdownValue((prev) => {
+          if (prev === null || prev <= 1) {
+            playSound("shot");
+            if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+            startActualLive();
+            return null;
+          }
+          playSound("countdown");
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      startActualLive();
+    }
   };
 
   const handleForceLaunch = () => {
@@ -2821,6 +2863,7 @@ export default function App() {
         
         // Optimistic UI update: resolve the saving state immediately
         finalizeSave();
+        setHistory((prev) => [newRun, ...prev]);
         
         // Background sync
         setDoc(doc(db, "users", usernameKey, "runs", newRun.id), newRun)
@@ -3741,6 +3784,27 @@ export default function App() {
                           <div className={`w-4 h-4 rounded-full bg-white transition-all transform ${systemConfig.vibrationEnabled ? "translate-x-6" : "translate-x-0"}`} />
                         </button>
                       </div>
+
+                      <div className="flex items-center justify-between p-4 bg-gray-950/50 border border-gray-800 rounded-2xl">
+                        <div className="flex items-center gap-3">
+                          <Timer className="w-4 h-4 text-violet-400" />
+                          <span className="text-xs font-bold text-white uppercase italic">START DELAY</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => updateSystemConfigProperty("startDelayEnabled", !systemConfig.startDelayEnabled)}
+                            className={`w-12 h-6 rounded-full transition-all flex items-center p-1 ${systemConfig.startDelayEnabled ? "bg-violet-600" : "bg-gray-800"}`}
+                          >
+                            <div className={`w-4 h-4 rounded-full bg-white transition-all transform ${systemConfig.startDelayEnabled ? "translate-x-6" : "translate-x-0"}`} />
+                          </button>
+                          <input
+                            type="number"
+                            value={isNaN(systemConfig.startDelaySeconds) ? 0 : systemConfig.startDelaySeconds}
+                            onChange={(e) => updateSystemConfigProperty("startDelaySeconds", parseInt(e.target.value) || 0)}
+                            className="bg-black/80 border border-gray-800 rounded-lg p-2 text-xs font-mono text-violet-400 text-right w-16"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </section>
 
@@ -4634,6 +4698,27 @@ export default function App() {
                         Confirm
                       </button>
                     </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Countdown Overlay */}
+            <AnimatePresence>
+              {countdownValue !== null && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[130] flex items-center justify-center p-6 bg-black/90 backdrop-blur-sm"
+                >
+                  <motion.div
+                    initial={{ scale: 0.8 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0.8 }}
+                    className="text-white text-[150px] font-black italic shadow-2xl tracking-tighter"
+                  >
+                    {countdownValue}
                   </motion.div>
                 </motion.div>
               )}

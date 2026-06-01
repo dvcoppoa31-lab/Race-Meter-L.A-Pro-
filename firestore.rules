@@ -21,7 +21,7 @@ service cloud.firestore {
     }
 
     function isTrialValid(data) {
-      return data.isTrial != true || (
+      return data == null || data.isTrial != true || (
         (data.trialUntil is timestamp && data.trialUntil > request.time) ||
         (data.trialUntil is number && data.trialUntil > (request.time.seconds * 1000 + request.time.nanoseconds / 1000000))
       );
@@ -70,9 +70,9 @@ service cloud.firestore {
 
       // History / Runs Rules
       match /runs/{runId} {
-        allow read, write: if isValidId(username) && isValidId(runId) && isTrialValid(get(/databases/$(database)/documents/users/$(username)).data);
+        allow read, write: if isValidId(username) && isValidId(runId);
         allow delete: if isValidId(username) && isValidId(runId);
-        allow list: if isValidId(username) && isTrialValid(get(/databases/$(database)/documents/users/$(username)).data);
+        allow list: if isValidId(username);
       }
     }
 
