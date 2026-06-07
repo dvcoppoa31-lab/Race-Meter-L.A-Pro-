@@ -676,6 +676,7 @@ interface User {
   role: "owner" | "admin" | "customer";
   boundDeviceId?: string;
   isBanned?: boolean;
+  forceLogout?: boolean;
   lastSeen?: number; // timestamp
   createdAt?: number;
   isTrial?: boolean;
@@ -797,6 +798,20 @@ export default function App() {
     "welcome" | "dashboard" | "history" | "settings" | "charts"
   >("welcome");
 
+  const [systemConfig, setSystemConfig] = useState({
+    maintenanceMode: false,
+    systemName: "RACE METER",
+    broadcastMessage: "",
+    vibrationEnabled: true,
+    minAccuracy: 20,
+    gpsWatchdogSpeed: 5000,
+    strictGpsMode: false,
+    startDelaySeconds: 0,
+    startDelayEnabled: false,
+    lowFX: false,
+    launchGThreshold: 2.0
+  });
+
   // --- Navigation with History Support (for APK/Back Button) ---
   const navigateView = (newView: "welcome" | "dashboard" | "history" | "settings" | "charts") => {
     if (view !== newView) {
@@ -835,6 +850,20 @@ export default function App() {
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(
     null,
   );
+  const [backupStatus, setBackupStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [unsyncedCount, setUnsyncedCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem("race_history_unsynced");
+      if (saved) {
+        const arr = JSON.parse(saved);
+        return Array.isArray(arr) ? arr.length : 0;
+      }
+    } catch {
+      return 0;
+    }
+    return 0;
+  });
   const [currentSpeed, setCurrentSpeed] = useState(0); // km/h
   const [maxSpeed, setMaxSpeed] = useState(0); // km/h
   const [elapsedTime, setElapsedTime] = useState(0); // ms
@@ -901,12 +930,12 @@ export default function App() {
     if (view === "charts") {
       interval = window.setInterval(() => {
         setRealTimeSpeedData([...speedHistoryRef.current]);
-      }, systemConfig.lowFX ? 500 : 200); // Throttle chart updates in Low FX mode
+      }, systemConfig.lowFX ? 500 : 80); // Speed up scrolling to 12.5 FPS (80ms) for a premium live oscillator feel in high FX
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [view]);
+  }, [view, systemConfig.lowFX]);
   const [peakG, setPeakG] = useState(0);
   const peakGRef = useRef(0);
   const [isGpsLocked, setIsGpsLocked] = useState(false);
@@ -1042,9 +1071,9 @@ export default function App() {
       
       const diff = trialUntilMillis - now;
       if (diff <= 0) {
+        clearInterval(timer);
         setRemainingTrialTime(0);
-        await deleteDoc(doc(db, "users", currentUser.username.toLowerCase()));
-        handleLogout();
+        await handleAccountExpiration();
       } else {
         setRemainingTrialTime(diff);
       }
@@ -1060,7 +1089,13 @@ export default function App() {
   const [dismissedBroadcast, setDismissedBroadcast] = useState(() => localStorage.getItem("race_dismissed_broadcast") || "");
   const [isSaving, setIsSaving] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("race_sound_enabled") !== "false");
-  const [localPilotName, setLocalPilotName] = useState(() => localStorage.getItem("race_local_pilot") || "Local Usage");
+  const [localPilotName, setLocalPilotName] = useState(() => {
+    const saved = localStorage.getItem("race_local_pilot");
+    if (saved && saved !== "Local Usage" && saved !== "Local Racer") return saved;
+    const autoName = "Rider-" + Math.floor(1000 + Math.random() * 9000);
+    localStorage.setItem("race_local_pilot", autoName);
+    return autoName;
+  });
   const [isSensorReady, setIsSensorReady] = useState(false);
   const ALPHA = 0.15;
 
@@ -1078,19 +1113,6 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isBulkManaging, setIsBulkManaging] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-
-  const [systemConfig, setSystemConfig] = useState({
-    maintenanceMode: false,
-    systemName: "RACE METER",
-    broadcastMessage: "",
-    vibrationEnabled: true,
-    minAccuracy: 20,
-    gpsWatchdogSpeed: 5000,
-    strictGpsMode: false,
-    startDelaySeconds: 0,
-    startDelayEnabled: false,
-    lowFX: false
-  });
 
   // --- Remote Config Sync ---
   useEffect(() => {
@@ -1199,6 +1221,68 @@ export default function App() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // --- Automatic Offline to Firebase Synchronization Engine ---
+  useEffect(() => {
+    if (!isOffline && isLoggedIn && currentUser?.username) {
+      const usernameKey = currentUser.username.toLowerCase();
+      
+      const runSyncEngine = async () => {
+        try {
+          const unsyncedRaw = localStorage.getItem("race_history_unsynced");
+          if (!unsyncedRaw) return;
+          
+          const unsyncedList: RaceRun[] = JSON.parse(unsyncedRaw);
+          if (!Array.isArray(unsyncedList) || unsyncedList.length === 0) {
+            setUnsyncedCount(0);
+            return;
+          }
+          
+          console.log(`[SYNC ENGINE] Menemukan ${unsyncedList.length} data sesi belum disinkronisasi. Memulai sync...`);
+          setIsSyncing(true);
+          
+          const batchLimit = 20;
+          const listToSync = unsyncedList.slice(0, batchLimit);
+          const batch = writeBatch(db);
+          
+          listToSync.forEach((run) => {
+            const updatedRun = {
+              ...run,
+              username: run.username || currentUser.username
+            };
+            const runRef = doc(db, "users", usernameKey, "runs", run.id);
+            batch.set(runRef, updatedRun, { merge: true });
+          });
+          
+          await batch.commit();
+          
+          const remainingList = unsyncedList.slice(batchLimit);
+          localStorage.setItem("race_history_unsynced", JSON.stringify(remainingList));
+          setUnsyncedCount(remainingList.length);
+          
+          console.log(`[SYNC ENGINE] Berhasil sinkronisasi ${listToSync.length} data sesi ke Firestore.`);
+          playSound("success");
+          
+          if (remainingList.length > 0) {
+            setTimeout(runSyncEngine, 2000);
+          } else {
+            setIsSyncing(false);
+          }
+        } catch (error) {
+          console.error("[SYNC ENGINE] Sinkronisasi offline gagal:", error);
+          setIsSyncing(false);
+        }
+      };
+      
+      const timer = setTimeout(() => {
+        runSyncEngine();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    } else {
+      setIsSyncing(false);
+    }
+  }, [isOffline, isLoggedIn, currentUser?.username]);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -1525,6 +1609,52 @@ export default function App() {
     }
   }, [isLoggedIn, isAdminOrOwner]);
 
+  // --- Real-time User Account Status Listener (Force Logout, Ban, Role update) ---
+  useEffect(() => {
+    if (isLoggedIn && currentUser?.username) {
+      const usernameKey = currentUser.username.toLowerCase();
+      if (["atmin", "owner27"].includes(usernameKey)) return;
+
+      const userRef = doc(db, "users", usernameKey);
+      const unsubscribe = onSnapshot(userRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const userData = snapshot.data() as User;
+          
+          // 1. Force logout trigger
+          if (userData.forceLogout === true) {
+            setDoc(userRef, { forceLogout: false }, { merge: true })
+              .catch(err => console.error("Error resetting forceLogout flag:", err))
+              .then(() => {
+                handleLogout();
+                setLoginError("Sesi Anda telah dihentikan oleh Owner.");
+              });
+            return;
+          }
+
+          // 2. Ban check
+          if (userData.isBanned === true) {
+            handleLogout();
+            setLoginError("YOUR ACCOUNT HAS BEEN BANNED. Contact system owner.");
+            return;
+          }
+
+          // 3. Real-time Role Update
+          if (userData.role && userData.role !== currentUser.role) {
+            setCurrentUser(prev => prev ? { ...prev, role: userData.role } : null);
+          }
+        } else {
+          // Document deleted
+          handleLogout();
+          setLoginError("Akun Anda telah dihapus oleh Owner.");
+        }
+      }, (error) => {
+        console.error("Real-time user subscription error:", error);
+      });
+
+      return () => unsubscribe();
+    }
+  }, [isLoggedIn, currentUser?.username]);
+
   // --- Firebase History Sync ---
   useEffect(() => {
     if (isLoggedIn && currentUser?.username) {
@@ -1731,10 +1861,18 @@ export default function App() {
             const batch = writeBatch(db);
             localHistory.forEach((run) => {
               const runRef = doc(db, "users", usernameKey, "runs", run.id);
-              batch.set(runRef, run);
+              batch.set(runRef, {
+                ...run,
+                username: user.username // Bind to correct profile
+              });
             });
-            batch.commit().catch(e => console.error("Migration error:", e));
-            localStorage.removeItem("race_history");
+            batch.commit()
+              .then(() => {
+                localStorage.removeItem("race_history");
+                localStorage.removeItem("race_history_unsynced");
+                setUnsyncedCount(0);
+              })
+              .catch(e => console.error("Migration error:", e));
           }
         }
       } catch (err) {
@@ -1805,16 +1943,42 @@ export default function App() {
     setView("welcome");
   };
 
-  const handleAccountExpiration = async () => {
+  async function handleAccountExpiration() {
     if (currentUser?.username) {
+      const usernameKey = currentUser.username.toLowerCase();
       try {
-        await deleteDoc(doc(db, "users", currentUser.username.toLowerCase()));
+        // Delete all runs in Firestore subcollection
+        const runsRef = collection(db, "users", usernameKey, "runs");
+        const runsSnapshot = await getDocs(runsRef);
+        if (!runsSnapshot.empty) {
+          const batch = writeBatch(db);
+          runsSnapshot.forEach((runDoc) => {
+            batch.delete(runDoc.ref);
+          });
+          await batch.commit();
+        }
+
+        // Delete the user record itself
+        await deleteDoc(doc(db, "users", usernameKey));
+
+        // Delete local history and sync queues to prevent trace of runs
+        localStorage.removeItem("race_history");
+        localStorage.removeItem("race_history_unsynced");
+        setHistory([]);
+        setUnsyncedCount(0);
+
         handleLogout();
       } catch (error) {
-        console.error("Error deleting expired account:", error);
+        console.error("Error deleting expired account resources:", error);
+        // Fallback cleanup
+        localStorage.removeItem("race_history");
+        localStorage.removeItem("race_history_unsynced");
+        setHistory([]);
+        setUnsyncedCount(0);
+        handleLogout();
       }
     }
-  };
+  }
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2051,6 +2215,23 @@ export default function App() {
     setTimeout(() => setAdminMessage(""), 3000);
   };
 
+  const handleForceLogoutUser = async (username: string) => {
+    try {
+      const targetLower = username.toLowerCase();
+      if (targetLower === currentUser?.username?.toLowerCase()) return;
+      if (["atmin", "owner27"].includes(targetLower)) return;
+
+      setAdminMessage(`Menghentikan sesi ${username}...`);
+      await setDoc(doc(db, "users", targetLower), { forceLogout: true }, { merge: true });
+      playSound("success");
+      setAdminMessage(`Sesi ${username} berhasil dihentikan secara realtime!`);
+    } catch (err: any) {
+      console.error("Error force logging out user:", err);
+      setAdminMessage("Error menghentikan sesi");
+    }
+    setTimeout(() => setAdminMessage(""), 3000);
+  };
+
   // Refs for GPS callback to avoid re-triggering watchPosition
   const isLiveRef = useRef(isLive);
   const isActiveRef = useRef(isActive);
@@ -2092,6 +2273,8 @@ export default function App() {
   const lastPointRef = useRef<GPSPoint | null>(null);
   const timerRef = useRef<number | null>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const launchTriggerRef = useRef<(() => void) | null>(null);
+  const accelWindowRef = useRef<{x: number, y: number, z: number}[]>([]);
   const pointsRef = useRef<GPSPoint[]>([]);
   const sessionTelemetryRef = useRef<
     { time: number; speed: number; accel: number }[]
@@ -2153,6 +2336,8 @@ export default function App() {
 
   // --- SENSOR FUSION REFS ---
   const fusedSpeedRef = useRef<number>(0); 
+  const kalmanPRef = useRef<number>(1.0); // Kalman Covariance State
+  const accelBiasRef = useRef<number>(0); // Dynamic Accelerometer Bias Auto-Nulling Ref
   const isLiveStartedAtRef = useRef<number>(0); // Added for delayed start
   const lastAccelTimestampRef = useRef<number>(performance.now());
   const accelIntegrationRef = useRef<number>(0);
@@ -2162,6 +2347,7 @@ export default function App() {
   const forwardVectorRef = useRef<{x: number, y: number, z: number} | null>(null);
   const smoothedAccelRef = useRef<{x: number, y: number, z: number}>({x: 0, y: 0, z: 0});
   const calibrationConfidenceRef = useRef<number>(0);
+  const projectedAccelHistoryRef = useRef<number[]>([]);
 
   // Save changes
   useEffect(() => {
@@ -2233,10 +2419,19 @@ export default function App() {
     lastAccelTimestampRef.current = now;
 
     if (accel && accel.x !== null && accel.y !== null && accel.z !== null) {
+        // Collect raw samples for directional launch filter
+        const rx = accel.x || 0;
+        const ry = accel.y || 0;
+        const rz = accel.z || 0;
+        accelWindowRef.current.push({ x: rx, y: ry, z: rz });
+        if (accelWindowRef.current.length > 8) {
+          accelWindowRef.current.shift();
+        }
+
         // Apply Low-Pass Filter
-        smoothedAccelRef.current.x = smoothedAccelRef.current.x + ALPHA * ((accel.x || 0) - smoothedAccelRef.current.x);
-        smoothedAccelRef.current.y = smoothedAccelRef.current.y + ALPHA * ((accel.y || 0) - smoothedAccelRef.current.y);
-        smoothedAccelRef.current.z = smoothedAccelRef.current.z + ALPHA * ((accel.z || 0) - smoothedAccelRef.current.z);
+        smoothedAccelRef.current.x = smoothedAccelRef.current.x + ALPHA * (rx - smoothedAccelRef.current.x);
+        smoothedAccelRef.current.y = smoothedAccelRef.current.y + ALPHA * (ry - smoothedAccelRef.current.y);
+        smoothedAccelRef.current.z = smoothedAccelRef.current.z + ALPHA * (rz - smoothedAccelRef.current.z);
 
         // Calculate G-Force magnitude
         const totalAcceleration = Math.sqrt(
@@ -2255,19 +2450,19 @@ export default function App() {
             peakGRef.current = parseFloat(currentG.toFixed(2));
         }
 
-        // Smoothing and Peak tracking - THROTTLED to 10 FPS
-        if (now - lastUIUpdateRef.current > 100) {
+        // Smoothing and Peak tracking - Dynamically throttled: 250ms in lowFX, 33ms (~30 FPS) for buttery smooth G-meter slides in high FX
+        const gForceInterval = systemConfig.lowFX ? 250 : 33;
+        if (now - lastUIUpdateRef.current > gForceInterval) {
           setGForce(parseFloat(currentG.toFixed(2)));
           setPeakG(peakGRef.current);
           lastUIUpdateRef.current = now;
         }
 
-        // --- REFINED SENSOR FUSION INTEGRATION ---
-        if (isActiveRef.current || isLiveRef.current) {
-          let projectedAccel = 0;
-          
-          if (forwardVectorRef.current) {
-            // Ultra-Precise True Forward Acceleration via Dot Product (ignores side-to-side and vertical bumps!)
+        // --- REFINED SENSOR FUSION INTEGRATION (RUNS ALWAYS) ---
+        let projectedAccel = 0;
+        
+        if (forwardVectorRef.current) {
+          // Ultra-Precise True Forward Acceleration via Dot Product (ignores side-to-side and vertical bumps!)
           const smoothedX = smoothedAccelRef.current.x;
           const smoothedY = smoothedAccelRef.current.y;
           const smoothedZ = smoothedAccelRef.current.z;
@@ -2276,27 +2471,118 @@ export default function App() {
             smoothedX * forwardVectorRef.current.x + 
             smoothedY * forwardVectorRef.current.y + 
             smoothedZ * forwardVectorRef.current.z;
-          } else {
-            // Fallback heuristic if not yet calibrated
-            const totalAccel = Math.sqrt(smoothedAccelRef.current.x**2 + smoothedAccelRef.current.y**2 + smoothedAccelRef.current.z**2);
-            projectedAccel = totalAccel; // Simply use total accel as fallback for now
+        } else {
+          // If not yet calibrated forward vector, we don't integrate the raw magnitude directly
+          // to prevent positive-only integration drift. Instead we rely on ground truth blending.
+          projectedAccel = 0;
+        }
+
+        // If we are ready (LIVE) but NOT actively running (ACTIVE) yet, 
+        // detect launch from a sudden G-force shock using RAW unsmoothed device acceleration.
+        // This avoids the low-pass filter smoothing delay entirely, registering launches on the exact millisecond!
+        if (isLiveRef.current && !isActiveRef.current) {
+          const rawX = accel.x || 0;
+          const rawY = accel.y || 0;
+          const rawZ = accel.z || 0;
+          const rawAccelMag = Math.sqrt(rawX * rawX + rawY * rawY + rawZ * rawZ);
+          
+          // Retrieve dynamic threshold based on launchGThreshold config (defaults to 2.0G)
+          const currentConfigThreshold = (systemConfig.launchGThreshold !== undefined && systemConfig.launchGThreshold !== null) ? systemConfig.launchGThreshold : 2.0;
+          const rawLaunchThreshold = currentConfigThreshold * 9.81;
+          
+          if (rawAccelMag > rawLaunchThreshold) {
+            console.log(`🚀 Sudden G-force launch detected on RAW sensor! Magnitude: ${(rawAccelMag/9.81).toFixed(2)}G (Threshold: ${currentConfigThreshold.toFixed(1)}G)`);
+            launchTriggerRef.current?.();
+            return;
           }
+        }
 
-          // Deadzone to prevent integration creep when stationary
-          const effectiveAccel = Math.abs(projectedAccel) < 0.4 ? 0 : projectedAccel;
+        // Calculate KPH ground truth from GPS
+        const gpsSpeedKmr = lastGpsSpeedRef.current * 3.6;
 
-          // Convert dt from milliseconds to seconds just in case it was too big. Cap it at 0.1s to prevent huge jumps.
-          const safeDt = Math.min(dt, 0.1);
+        // Zero Velocity Update (ZVU) / Dynamic Bias Calibration
+        if (gpsSpeedKmr < 0.5 && forwardVectorRef.current && !isActiveRef.current) {
+          // Low-pass filter the systematic bias offset from zero gravity compensation
+          // 0.02 update weight ensures very steady learning, preventing single bumps from changing it.
+          accelBiasRef.current = accelBiasRef.current + 0.02 * (projectedAccel - accelBiasRef.current);
+        }
 
-          // Add to speed (v = u + at). 
-          const frictionDecay = forwardVectorRef.current ? 0.999 : 0.98; // Very low decay if confident
-          accelIntegrationRef.current = (accelIntegrationRef.current + effectiveAccel * safeDt) * frictionDecay;
+        // Subtract calibrated gravity mounting vector bias
+        const unbiasedAccel = projectedAccel - accelBiasRef.current;
+
+        // Slide the projected accel history window (using unbiased/calibrated signal)
+        projectedAccelHistoryRef.current.push(unbiasedAccel);
+        
+        // Adaptive history window to maximize responsiveness when active / moving, while retaining full anti-vibration damping when still.
+        const isDynamic = isActiveRef.current || fusedSpeedRef.current > 3.0 || gpsSpeedKmr > 3.0;
+        const maxHistorySize = isDynamic ? 6 : 15;
+        
+        while (projectedAccelHistoryRef.current.length > maxHistorySize) {
+          projectedAccelHistoryRef.current.shift();
+        }
+
+        // Window average acceleration to completely eliminate engine vibrations and high-frequency hand shakes!
+        const windowAvgAccel = projectedAccelHistoryRef.current.length > 0 
+          ? projectedAccelHistoryRef.current.reduce((a, b) => a + b, 0) / projectedAccelHistoryRef.current.length 
+          : unbiasedAccel;
+
+        // Deadzone to prevent integration creep when stationary or minor vibration noise.
+        // During hard throttle, the deadzone goes minimal for extreme sensitivity. When stationary, it stays high to fully reject shaking.
+        const deadzone = isDynamic ? 0.12 : 0.40;
+        const effectiveAccel = Math.abs(windowAvgAccel) < deadzone ? 0 : windowAvgAccel;
+
+        // Convert dt from milliseconds to seconds just in case it was too big. Cap it at 0.1s to prevent huge jumps.
+        const safeDt = Math.min(dt, 0.1);
+
+        // Kalman State Transition Predict Step:
+        // x_{t|t-1} = x_{t-1} + a_effective * dt * 3.6
+        const dvKmh = effectiveAccel * safeDt * 3.6;
+        const predictedSpeed = fusedSpeedRef.current + dvKmh;
+
+        // Update Covariance: P_predict = P_prev + Q * dt
+        // processNoise represents variation in bike launch behavior and calibration drift.
+        // During extreme acceleration (>1.2G), we let the process covariance grow slightly faster
+        // to adapt to the highly dynamic motor launches.
+        const dynamicQ = Math.abs(windowAvgAccel) > 1.2 ? 2.5 : 0.6; 
+        kalmanPRef.current = Math.min(10.0, kalmanPRef.current + dynamicQ * safeDt);
+
+        if (isActiveRef.current) {
+          // Actively racing: Integrate accelerometer directly at 60-100Hz with Kalman prediction!
+          // Apply strict speed boundaries to completely eliminate shaking/rectification drift!
+          const elapsedSec = elapsedTimeRef.current / 1000;
+          let speedCap = 300;
           
-          // Fused speed is the last known good GPS speed (ignore accelerometer noise)
-          const estimatedSpeed = lastGpsSpeedRef.current * 3.6; // convert to km/h
+          if (elapsedSec > 1.2) {
+            if (gpsSpeedKmr < 3.0) {
+              // Stationary or shaking in active test: clamp to 0 km/h!
+              speedCap = 0;
+              accelIntegrationRef.current = 0;
+            } else {
+              // Moving. Limit maximum speedometer lead over GPS to prevent drift accumulation.
+              // This completely stops shaking/vibrations from ever inflating the speed!
+              // Allow larger lead (up to 35 km/h) when actively accelerating hard to match real motor response.
+              const maxLead = effectiveAccel > 1.5 ? 35 : 15;
+              speedCap = gpsSpeedKmr + maxLead;
+            }
+          } else {
+            // Instant launch phase (first 1.2s): limit maximum pure-accumulated speed to a realistic maximum of 25 km/h.
+            // This allows authentic G-force reaction during start but limits shake-induced climbing.
+            speedCap = Math.max(25, gpsSpeedKmr + 15);
+          }
           
-          // Update the ref that the UI tick loop reads
-          fusedSpeedRef.current = Math.max(0, estimatedSpeed);
+          fusedSpeedRef.current = Math.max(0, Math.min(speedCap, predictedSpeed));
+        } else {
+          // Standby or waiting to start:
+          if (gpsSpeedKmr < 0.5) {
+            // Speed under 1.8 KPH -> Lock strictly to 0 KPH.
+            // This guarantees absolutely ZERO drift or vibration creeps when stationary or engine revving!
+            fusedSpeedRef.current = 0;
+            accelIntegrationRef.current = 0;
+            kalmanPRef.current = 0.1; // reset covariance when certain of speed 0
+          } else {
+            // Moving in standby: update based on accelerometer prediction and decay/merge covariance
+            fusedSpeedRef.current = Math.max(0, Math.min(300, predictedSpeed));
+          }
         }
     }
   }, [isSensorReady]);
@@ -2316,34 +2602,69 @@ export default function App() {
       watchdog = window.setInterval(() => {
         if (isLiveRef.current) {
           const now = Date.now();
-          if (lastGpsTimestampRef.current && (now - lastGpsTimestampRef.current > systemConfig.gpsWatchdogSpeed)) {
-            console.warn("GPS Stale - Restarting watch...");
+          // Automatic smart watchdog timeout:
+          // If we are riding fast (fusedSpeedRef.current > 40 KPH), watch for updates closer (4.0 seconds timeout)
+          // Otherwise, allow up to 7.0 seconds of latency while stationary or maneuvering to prevent false-reloading
+          const dynamicTimeout = (fusedSpeedRef.current > 40) ? 4000 : 7000;
+          
+          if (lastGpsTimestampRef.current && (now - lastGpsTimestampRef.current > dynamicTimeout)) {
+            console.warn(`[WATCHDOG] GPS Stale (${(now - lastGpsTimestampRef.current)}ms > ${dynamicTimeout}ms) - Auto Resetting Sensor Watch...`);
             lastGpsTimestampRef.current = now; // Give the new sensor time to breathe
             setGpsVersion(v => v + 1);
           }
         }
-      }, 3000);
+      }, 2500);
     };
 
-    if (isLive) startWatchdog();
+    startWatchdog();
 
     // SMOOTH SPEED UPDATER (Sensor Fusion Loop)
     let speedLoop: number | null = null;
-    if (isLive) {
-      let lastSpeedUpdate = performance.now();
-      const updateSpeedSmoothly = () => {
-        const now = performance.now();
-        const baseInterval = systemConfig.lowFX ? 250 : 80; // Throttle UI re-render rate to 4FPS / ~12.5FPS to save massive CPU cycles
+    let lastSpeedUpdate = performance.now();
+    let renderedSpeed = 0;
+    let isUnmounted = false;
+    
+    const updateSpeedSmoothly = () => {
+      if (isUnmounted) return;
+      const now = performance.now();
+      const dt = (now - lastSpeedUpdate) / 1000;
+      
+      const targetSpeed = fusedSpeedRef.current;
+      
+      if (systemConfig.lowFX) {
+        // In Low FX mode, we do not interpolate, we just sync at 4FPS to save CPU
+        const baseInterval = 250; 
         if (now - lastSpeedUpdate > baseInterval) {
-          if (!isActiveRef.current && isLiveRef.current) {
-            setCurrentSpeed(fusedSpeedRef.current);
-          }
+          renderedSpeed = targetSpeed;
+          setCurrentSpeed(targetSpeed);
           lastSpeedUpdate = now;
         }
-        speedLoop = requestAnimationFrame(updateSpeedSmoothly);
-      };
+      } else {
+        // High fidelity mode: continuous 60-120Hz sub-frame display interpolation (analog styling)
+        lastSpeedUpdate = now;
+        const speedDiff = targetSpeed - renderedSpeed;
+        
+        // Dynamic adaptive easing:
+        // - Fast tracking when speed varies rapidly (to match instant engine pulls)
+        // - High filtering when cruising / stationary to ensure completely stable display values
+        const isChangingFast = Math.abs(speedDiff) > 3.0;
+        const baseEasing = isChangingFast ? 0.22 : 0.08;
+        
+        // Frame rate compensation using safe dt (cap at 100ms lag to prevent insane leaps)
+        const safeDt = dt > 0.1 ? 0.016 : dt;
+        const easing = Math.min(1.0, baseEasing * (safeDt / 0.016));
+        renderedSpeed = renderedSpeed + speedDiff * easing;
+        
+        if (renderedSpeed < 0.08 && targetSpeed === 0) {
+          renderedSpeed = 0;
+        }
+        
+        setCurrentSpeed(renderedSpeed);
+      }
+      
       speedLoop = requestAnimationFrame(updateSpeedSmoothly);
-    }
+    };
+    speedLoop = requestAnimationFrame(updateSpeedSmoothly);
     
     // AGGRESSIVE GPS BOOST: Recursive polling to force high-power states indefinitely
     // even if the device tries to throttle setInterval or watchPosition.
@@ -2404,55 +2725,135 @@ export default function App() {
               sessionHzValuesRef.current.push(hz);
             }
             
-            const rawSpeedKmr = (speed !== null && speed > 1.0 ? speed : 0) * 3.6;
+            const rawSpeedKmr = (speed !== null && speed > 0.2 ? speed : 0) * 3.6;
             
-            // Ultra-precise orientation auto-calibration using device linear acceleration
+            // Continuous Adaptive Vector Learning
             const dv = rawSpeedKmr - lastGpsSpeedRef.current;
             const gpsAcceleration = dv / diffSeconds; // km/h/s
             
-            // If GPS detects strong, sustained forward acceleration (>5 km/h/s, approx 0.14g), lock the vector!
-            if (gpsAcceleration > 5.0) {
-               const sA = smoothedAccelRef.current;
-               const mag = Math.sqrt(sA.x**2 + sA.y**2 + sA.z**2);
-               if (mag > 1.0) {
-                 forwardVectorRef.current = {
-                   x: sA.x / mag,
-                   y: sA.y / mag,
-                   z: sA.z / mag
-                 };
-                 // Gain confidence!
-                 calibrationConfidenceRef.current = Math.min(100, calibrationConfidenceRef.current + 25);
-               }
-            } else if (rawSpeedKmr < 2 && gpsAcceleration > -2 && gpsAcceleration < 2) {
-               // Stopped. Do not drop confidence heavily, maybe the phone is just resting.
-               // We keep the vector!
+            if (gpsAcceleration > 2.5 && rawSpeedKmr > 8.0) {
+              const sA = smoothedAccelRef.current;
+              const mag = Math.sqrt(sA.x**2 + sA.y**2 + sA.z**2);
+              if (mag > 0.4) {
+                const currentHeadingVec = {
+                  x: sA.x / mag,
+                  y: sA.y / mag,
+                  z: sA.z / mag
+                };
+                
+                if (!forwardVectorRef.current) {
+                  forwardVectorRef.current = { ...currentHeadingVec };
+                } else {
+                  // Exponentially blend newly learned heading vector to continuously optimize for mount angle, curves, or rider tilt!
+                  forwardVectorRef.current.x = forwardVectorRef.current.x + 0.12 * (currentHeadingVec.x - forwardVectorRef.current.x);
+                  forwardVectorRef.current.y = forwardVectorRef.current.y + 0.12 * (currentHeadingVec.y - forwardVectorRef.current.y);
+                  forwardVectorRef.current.z = forwardVectorRef.current.z + 0.12 * (currentHeadingVec.z - forwardVectorRef.current.z);
+                  
+                  // Re-normalize to unit length
+                  const finalMag = Math.sqrt(
+                    forwardVectorRef.current.x**2 + 
+                    forwardVectorRef.current.y**2 + 
+                    forwardVectorRef.current.z**2
+                  );
+                  if (finalMag > 0.001) {
+                    forwardVectorRef.current.x /= finalMag;
+                    forwardVectorRef.current.y /= finalMag;
+                    forwardVectorRef.current.z /= finalMag;
+                  }
+                }
+                calibrationConfidenceRef.current = Math.min(100, calibrationConfidenceRef.current + 8);
+              }
             }
           }
         }
         lastGpsTimestampRef.current = position.timestamp;
 
         // 2. Determine if Signal is "Locked" (Accuracy < 10m is standard, < 5m is pro)
-        const locked = accuracy !== null && accuracy <= 10;
+        const locked = accuracy !== null && accuracy <= systemConfig.minAccuracy;
         setIsGpsLocked(locked);
 
         // --- SPEED UI UPDATES ---
-        const filteredSpeed = speed !== null && speed > 1.0 ? speed : 0;
+        const filteredSpeed = speed !== null && speed > 0.2 ? speed : 0;
         
-        // RESET SENSOR FUSION WITH GROUND TRUTH
-        // GPS Speed is our anchor. When it updates, we reset the accelerometer integration
-        // and snap to the measured GPS speed.
         lastGpsSpeedRef.current = filteredSpeed;
-        accelIntegrationRef.current = 0; 
-        fusedSpeedRef.current = filteredSpeed * 3.6;
         
-        const rawSpeedKmr = filteredSpeed * 3.6;
-        const speedKmr = rawSpeedKmr;
+        const gpsSpeedKmr = filteredSpeed * 3.6;
+        if (isActiveRef.current) {
+          // Kalman Correction / GPS fusion update during Active Run
+          const elapsedSec = elapsedTimeRef.current / 1000;
+          if (elapsedSec > 1.2 && gpsSpeedKmr < 3.0) {
+            // Stationary or shaking: pull down velocity rapidly
+            fusedSpeedRef.current = (fusedSpeedRef.current * 0.2) + (gpsSpeedKmr * 0.8);
+            kalmanPRef.current = 0.5;
+          } else if (gpsSpeedKmr > 1.0) {
+            // Real-time Kalman Measurement update
+            const accuracyVal = accuracy !== null ? accuracy : 10;
+            const innovation = gpsSpeedKmr - fusedSpeedRef.current;
+            const absInnovation = Math.abs(innovation);
+
+            const averageAccelTrend = projectedAccelHistoryRef.current.length > 0 
+              ? projectedAccelHistoryRef.current.reduce((a, b) => a + b, 0) / projectedAccelHistoryRef.current.length 
+              : 0;
+
+            // Physics barrier: maximum possible speed variation per GPS cycle based on G-forces
+            const maxPhysicsChange = 25.0 + (Math.abs(averageAccelTrend) * 15.0); 
+
+            let trustedGpsSpeed = gpsSpeedKmr;
+            if (absInnovation > maxPhysicsChange && accuracyVal > 5) {
+              // Smooth out extreme outlier leaps
+              console.warn("⚠️ Kalman Outlier Smoother: GPS speed jump rejected. GPS:", gpsSpeedKmr, "Fused:", fusedSpeedRef.current);
+              trustedGpsSpeed = fusedSpeedRef.current + Math.sign(innovation) * maxPhysicsChange;
+            }
+
+            // Dynamically scale measurement noise covariance R by GPS accuracy and Acceleration Trend
+            // During massive thrust (launch, accelTrend > 1.2), de-weight GPS (higher R_base) to completely
+            // avoid GPS's ~0.8-1.2s lag from dragging down the instantaneous speedometer display.
+            // During deceleration (accelTrend < -1.2), trust GPS more directly to drop the speedometer.
+            let R_base = 0.12;
+            if (averageAccelTrend > 1.2) {
+              R_base = 0.90; // high deweighting of sluggish GPS during launch/g-force acceleration
+            } else if (averageAccelTrend < -1.2) {
+              R_base = 0.04; // pull down immediately when rider pulls the brakes
+            }
+            const R = R_base * Math.pow(Math.max(1.5, accuracyVal) / 3.0, 2);
+
+            // Compute Kalman Gain
+            const P = kalmanPRef.current;
+            const K = P / (P + R);
+
+            // Correct state
+            fusedSpeedRef.current = Math.max(0, fusedSpeedRef.current + K * (trustedGpsSpeed - fusedSpeedRef.current));
+
+            // Correct state covariance
+            kalmanPRef.current = (1 - K) * P;
+          }
+        } else {
+          // Standby mode
+          if (gpsSpeedKmr < 0.5) {
+            fusedSpeedRef.current = 0;
+            accelIntegrationRef.current = 0;
+            kalmanPRef.current = 0.1;
+          } else {
+            // Blending with Kalman filtering for incredibly clean stand-by speedometer
+            const accuracyVal = accuracy !== null ? accuracy : 10;
+            const R_base = 0.25; // slightly higher base in standby
+            const R = R_base * Math.pow(Math.max(2.0, accuracyVal) / 3.0, 2);
+            const P = kalmanPRef.current;
+            const K = P / (P + R);
+            fusedSpeedRef.current = Math.max(0, fusedSpeedRef.current + K * (gpsSpeedKmr - fusedSpeedRef.current));
+            kalmanPRef.current = (1 - K) * P;
+          }
+        }
+        
+        // Use the ultra-smooth fused speed for all calculations and rendering
+        const speedKmr = fusedSpeedRef.current;
         const now = Date.now();
 
         if (now - lastTelemetryUpdateRef.current > 120) {
           const newPoint = {
             time: `t-${now}`,
-            speed: Math.round(speedKmr),
+            // Represent speed as floating point to let the spline rendering remain beautifully smooth and analog-like
+            speed: parseFloat(speedKmr.toFixed(1)),
           };
           
           speedHistoryRef.current = [...(speedHistoryRef.current || []).slice(1), newPoint];
@@ -2595,11 +2996,11 @@ export default function App() {
             }
             
             // Throttled UI Sync to prevent overloading main thread with React renders
-            const uiInterval = systemConfig.lowFX ? 250 : 80; // 80ms (~12.5 FPS) is extremely fluid, responsive and efficient
+            const uiInterval = systemConfig.lowFX ? 250 : 40; // 40ms (~25 FPS) is extremely fluid, responsive and efficient
             if (now - lastUpdate > uiInterval || splitReached) {
               setElapsedTime(elapsed);
               setDistanceCovered(totalDist);
-              setCurrentSpeed(currentFusedKmh);
+              // Keyboard/Screen speedometer currentSpeed is updated continuously at 60Hz by the smooth speed updater loop!
               lastUpdate = now;
             }
             
@@ -2610,10 +3011,16 @@ export default function App() {
           timerRef.current = requestAnimationFrame(tick);
         }
 
-        if (isActiveRef.current && lastPointRef.current) {
-          // Just save track points for the map view, ignore distances
-          pointsRef.current.push(currentPoint);
-          lastPointRef.current = currentPoint;
+        if (isActiveRef.current) {
+          if (!lastPointRef.current) {
+            startPointRef.current = currentPoint;
+            lastPointRef.current = currentPoint;
+            pointsRef.current = [currentPoint];
+          } else {
+            // Just save track points for the map view, ignore distances
+            pointsRef.current.push(currentPoint);
+            lastPointRef.current = currentPoint;
+          }
         }
       },
       (error) => {
@@ -2628,6 +3035,7 @@ export default function App() {
 
     return () => {
       boostActive = false;
+      isUnmounted = true;
       navigator.geolocation.clearWatch(watchId);
       if (watchdog) window.clearInterval(watchdog);
       if (boostTimeout) window.clearTimeout(boostTimeout);
@@ -2659,6 +3067,8 @@ export default function App() {
       setSessionMaxAccuracy(null);
       sessionTelemetryRef.current = [];
       sessionHzValuesRef.current = [];
+      accelWindowRef.current = [];
+      projectedAccelHistoryRef.current = [];
       setSplits(
         selectedTargets.map((t) => ({
           ...t,
@@ -2677,6 +3087,7 @@ export default function App() {
           if (prev === null || prev <= 1) {
             playSound("shot");
             if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
             startActualLive();
             return null;
           }
@@ -2692,6 +3103,13 @@ export default function App() {
   const handleForceLaunch = () => {
     if (!isLiveRef.current || isActiveRef.current) return;
 
+    // Clean up any pending countdowns immediately if launched by shock
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setCountdownValue(null);
+
     setIsActive(true);
     isActiveRef.current = true;
     setIsTouchLocked(true);
@@ -2699,6 +3117,7 @@ export default function App() {
     elapsedTimeRef.current = 0;
     setDistanceCovered(0);
     distanceCoveredRef.current = 0;
+    projectedAccelHistoryRef.current = [];
 
     const freshSplits = selectedTargetsRef.current.map((t) => ({
       ...t,
@@ -2792,7 +3211,7 @@ export default function App() {
       // Uncapped UI Sync at screen refresh rate
       setElapsedTime(elapsed);
       setDistanceCovered(totalDist);
-      setCurrentSpeed(currentFusedKmh);
+      // currentSpeed updates are handled continuously by the dedicated, buttery-smooth 60Hz loop!
       
       if (isLiveRef.current && isActiveRef.current) {
         timerRef.current = requestAnimationFrame(tick);
@@ -2802,12 +3221,19 @@ export default function App() {
     playSound("success");
   };
 
+  launchTriggerRef.current = handleForceLaunch;
+
   const handleStop = (
     finalDistance?: number | any,
     finalTime?: number,
     finalSplits?: Split[],
   ) => {
     if (timerRef.current) cancelAnimationFrame(timerRef.current);
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setCountdownValue(null);
 
     if (isActiveRef.current) {
       // If triggered by a button click event, finalDistance will be an object.
@@ -2858,6 +3284,19 @@ export default function App() {
         setTimeout(() => setIsSaving(false), 2000);
       };
 
+      // Maintain offline unsynced database queue immediately to prevent any potential data loss
+      try {
+        const unsyncedRaw = localStorage.getItem("race_history_unsynced");
+        const unsyncedList: RaceRun[] = unsyncedRaw ? JSON.parse(unsyncedRaw) : [];
+        if (Array.isArray(unsyncedList)) {
+          unsyncedList.push(newRun);
+          localStorage.setItem("race_history_unsynced", JSON.stringify(unsyncedList));
+          setUnsyncedCount(unsyncedList.length);
+        }
+      } catch (err) {
+        console.error("Failed to add run to offline queue:", err);
+      }
+
       if (isLoggedIn && currentUser?.username) {
         const usernameKey = currentUser.username.toLowerCase();
         
@@ -2867,8 +3306,22 @@ export default function App() {
         
         // Background sync
         setDoc(doc(db, "users", usernameKey, "runs", newRun.id), newRun)
+          .then(() => {
+            // Success! Remove from offline queue.
+            try {
+              const unsyncedRaw = localStorage.getItem("race_history_unsynced");
+              if (unsyncedRaw) {
+                const unsyncedList: RaceRun[] = JSON.parse(unsyncedRaw);
+                const filtered = unsyncedList.filter(r => r.id !== newRun.id);
+                localStorage.setItem("race_history_unsynced", JSON.stringify(filtered));
+                setUnsyncedCount(filtered.length);
+              }
+            } catch (err) {
+              console.error("Failed to update offline queue:", err);
+            }
+          })
           .catch(e => {
-            handleFirestoreError(e, OperationType.WRITE, `users/${usernameKey}/runs/${newRun.id}`);
+            console.warn("Offline or slow save - retained offline copy.", e);
           });
       } else {
         setHistory((prev) => [newRun, ...prev]);
@@ -2888,6 +3341,19 @@ export default function App() {
   const deleteHistory = async (id: string) => {
     playSound("click");
     requireConfirm("Delete Run", t.deleteConfirm || "Delete this run?", async () => {
+      // Always remove from the offline sync queue
+      try {
+        const unsyncedRaw = localStorage.getItem("race_history_unsynced");
+        if (unsyncedRaw) {
+          const unsyncedList: RaceRun[] = JSON.parse(unsyncedRaw);
+          const filtered = unsyncedList.filter(r => r.id !== id);
+          localStorage.setItem("race_history_unsynced", JSON.stringify(filtered));
+          setUnsyncedCount(filtered.length);
+        }
+      } catch (err) {
+        console.error("Error removing run from offline queue:", err);
+      }
+
       if (isLoggedIn && currentUser?.username) {
         const usernameKey = currentUser.username.toLowerCase();
         try {
@@ -2909,6 +3375,11 @@ export default function App() {
     playSound("click");
     requireConfirm("Clear History", t.deleteConfirm || "Are you sure?", async () => {
       playSound("error");
+      
+      // Clear offline sync queue
+      localStorage.removeItem("race_history_unsynced");
+      setUnsyncedCount(0);
+
       if (isLoggedIn && currentUser?.username) {
         const usernameKey = currentUser.username.toLowerCase();
         try {
@@ -2926,6 +3397,95 @@ export default function App() {
         setHistory([]);
       }
     });
+  };
+
+  const exportHistoryBackup = () => {
+    playSound("click");
+    if (currentUser?.isTrial) {
+      setBackupStatus({ type: "error", message: "EKSPOR MANUAL DIBLOKIR UNTUK AKUN SEWA" });
+      setTimeout(() => setBackupStatus(null), 4000);
+      return;
+    }
+    try {
+      const dataStr = JSON.stringify(history, null, 2);
+      const blob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const timeStr = new Date().toTimeString().slice(0, 5).replace(/:/g, "").replace(/\s/g, "");
+      link.href = url;
+      link.download = `racemeter_backup_${dateStr}_${timeStr}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      setBackupStatus({ type: "success", message: "BERHASIL EKSPOR CADANGAN OFFLINE (.JSON)" });
+      setTimeout(() => setBackupStatus(null), 4000);
+    } catch (e) {
+      console.error("Export failed:", e);
+      setBackupStatus({ type: "error", message: "GAGAL EKSPOR CADANGAN OFFLINE" });
+      setTimeout(() => setBackupStatus(null), 4000);
+    }
+  };
+
+  const importHistoryBackup = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    playSound("click");
+    if (currentUser?.isTrial) {
+      setBackupStatus({ type: "error", message: "IMPOR MANUAL DIBLOKIR UNTUK AKUN SEWA" });
+      setTimeout(() => setBackupStatus(null), 4000);
+      event.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const importedData = JSON.parse(text);
+
+        if (!Array.isArray(importedData)) {
+          setBackupStatus({ type: "error", message: "FILE TIDAK VALID (BUKAN LIST SESI)" });
+          setTimeout(() => setBackupStatus(null), 4000);
+          return;
+        }
+
+        const isValid = importedData.every(
+          (item) => typeof item === "object" && item !== null && (item.id || item.date)
+        );
+
+        if (!isValid) {
+          setBackupStatus({ type: "error", message: "FORMAT FILE TIDAK SESUAI" });
+          setTimeout(() => setBackupStatus(null), 4000);
+          return;
+        }
+
+        requireConfirm(
+          "Impor Data",
+          `Menemukan ${importedData.length} data balapan. Impor dan gabungkan dengan data saat ini?`,
+          () => {
+            setHistory((prev) => {
+              const existingIds = new Set(prev.map((h) => h.id));
+              const newRuns = importedData.filter((item) => !existingIds.has(item.id));
+              const merged = [...newRuns, ...prev];
+              merged.sort((a, b) => b.date - a.date);
+              return merged;
+            });
+            playSound("success");
+            setBackupStatus({ type: "success", message: `BERHASIL MENGIMPOR ${importedData.length} RUN OFFLINE` });
+            setTimeout(() => setBackupStatus(null), 4000);
+          }
+        );
+      } catch (err) {
+        console.error("Failed to parse local backup file:", err);
+        setBackupStatus({ type: "error", message: "GAGAL MEMBACA ARSIP CADANGAN" });
+        setTimeout(() => setBackupStatus(null), 4000);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
   };
 
   const blurClass = systemConfig.lowFX ? "" : "backdrop-blur-md";
@@ -2982,14 +3542,33 @@ export default function App() {
             </motion.div>
           </motion.div>
         )}
-        {isOffline && (
+        {isOffline ? (
           <motion.div 
             initial={{ y: -50 }} animate={{ y: 0 }} exit={{ y: -50 }}
             className="fixed top-0 left-0 right-0 z-[100] bg-amber-600 text-white text-[10px] font-black uppercase py-1 text-center flex items-center justify-center gap-2"
           >
-            <ShieldAlert className="w-3 h-3" /> Offline Mode - Some features may be limited
+            <ShieldAlert className="w-3 h-3 text-amber-100" /> Offline Mode - sebagian fitur mungkin terbatas
           </motion.div>
-        )}
+        ) : isSyncing ? (
+          <motion.div 
+            initial={{ y: -50 }} animate={{ y: 0 }} exit={{ y: -50 }}
+            className="fixed top-0 left-0 right-0 z-[100] bg-violet-600 text-white text-[10px] font-black uppercase py-1.5 text-center flex items-center justify-center gap-2"
+          >
+            <RefreshCw className="w-3 h-3 animate-spin text-violet-200" /> MENYELARASKAN {unsyncedCount} DATA SESI OFFLINE KE CLOUD...
+          </motion.div>
+        ) : unsyncedCount > 0 && isLoggedIn ? (
+          <motion.div 
+            initial={{ y: -50 }} animate={{ y: 0 }} exit={{ y: -50 }}
+            className="fixed top-0 left-0 right-0 z-[100] bg-sky-600 text-white text-[10px] font-black uppercase py-1.5 text-center flex items-center justify-center gap-2 cursor-pointer hover:bg-sky-500 transition-colors"
+            onClick={() => {
+              setIsOffline(true);
+              setTimeout(() => setIsOffline(false), 200);
+            }}
+            title="Klik untuk menyinkronkan data"
+          >
+            <Database className="w-3 h-3 animate-pulse text-sky-100" /> {unsyncedCount} DATA SESI BALAPAN OFFLINE BELUM DISINKRONISASI. KLIK UNTUK SYNC SEKARANG.
+          </motion.div>
+        ) : null}
         {maintenanceMode && !isOwner && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -3171,12 +3750,12 @@ export default function App() {
             <div className="flex justify-end items-center gap-3 mb-2 px-1">
               <div className="flex items-center gap-1.5 mr-auto">
                 <div
-                  className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]" : "bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]"}`}
+                  className={`w-1.5 h-1.5 rounded-full ${!isOffline ? "bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]" : "bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]"}`}
                 />
                 <span
-                  className={`text-[9px] font-black uppercase tracking-widest ${isOnline ? "text-gray-500" : "text-red-500 italic"}`}
+                  className={`text-[9px] font-black uppercase tracking-widest ${!isOffline ? "text-gray-500" : "text-red-500 italic"}`}
                 >
-                  {isOnline ? "Online" : "Offline"}
+                  {!isOffline ? "Online" : "Offline"}
                 </span>
               </div>
               {broadcastMessage && broadcastMessage !== dismissedBroadcast && broadcastMessage !== "test" && (
@@ -3417,6 +3996,7 @@ export default function App() {
                   systemStats={systemStats}
                   isAdminOrOwner={isAdminOrOwner}
                   currentUser={currentUser}
+                  handleAccountExpiration={handleAccountExpiration}
                 />
               )}
 
@@ -3440,6 +4020,88 @@ export default function App() {
                       >
                         {t.deleteAll}
                       </button>
+                    )}
+                  </div>
+
+                  {/* CADANGAN OFFLINE & PENYIMPANAN LOKAL WIDGET */}
+                  <div className="bg-black/40 p-4 border border-gray-800 rounded-2xl flex flex-col gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-2 bg-violet-600/10 border border-violet-500/20 text-violet-400 rounded-xl mt-0.5">
+                        <Database className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-white uppercase tracking-wider italic">PENYIMPANAN LOKAL</span>
+                          <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-md font-black uppercase tracking-wider italic">✓ OFFLINE AMAN</span>
+                        </div>
+                        <p className="text-[9px] text-gray-400 leading-snug mt-1 font-bold uppercase">
+                          Sesi balapan Anda otomatis tersimpan di perangkat (LocalStorage) secara offline. Ekspor file secara berkala untuk cadangan fisik.
+                        </p>
+                      </div>
+                    </div>
+
+                    {currentUser?.isTrial ? (
+                      <div className="py-2.5 px-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl flex items-center justify-center gap-2">
+                        <Lock className="w-3.5 h-3.5 text-red-500" />
+                        <span className="text-[9px] font-black uppercase tracking-wider italic">EKSPOR/IMPOR DINONAKTIFKAN UNTUK AKUN SEWA</span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        <button
+                          onClick={exportHistoryBackup}
+                          className="py-2 bg-gray-950 hover:bg-gray-900 border border-gray-800 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                        >
+                          <Download className="w-3.5 h-3.5 text-violet-400" />
+                          EKSPOR FILE
+                        </button>
+                        
+                        <label className="py-2 bg-gray-950 hover:bg-gray-900 border border-gray-800 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 text-center">
+                          <ArrowUpCircle className="w-3.5 h-3.5 text-cyan-400" />
+                          IMPOR FILE
+                          <input
+                            type="file"
+                            accept=".json"
+                            onChange={importHistoryBackup}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    {unsyncedCount > 0 && (
+                      <div className="px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <RefreshCw className={`w-3 h-3 text-amber-400 ${isSyncing ? "animate-spin" : ""}`} />
+                          <span className="text-[9px] font-black text-amber-400 uppercase tracking-wider">
+                            {isSyncing ? "MENYELARASKAN DATA..." : `${unsyncedCount} DATA SESI OFFLINE BELUM SYNC`}
+                          </span>
+                        </div>
+                        {isLoggedIn && !isOffline && !isSyncing && (
+                          <button
+                            onClick={() => {
+                              setIsOffline(true);
+                              setTimeout(() => setIsOffline(false), 200);
+                            }}
+                            className="px-2 py-0.5 bg-amber-500 text-black rounded text-[8px] font-black uppercase tracking-wider hover:bg-amber-400 transition-colors"
+                          >
+                            SYNC SEKARANG
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {backupStatus && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`text-[9px] font-black uppercase text-center py-1.5 rounded-lg border ${
+                          backupStatus.type === "success"
+                            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                            : "bg-red-500/10 border-red-500/20 text-red-500"
+                        }`}
+                      >
+                        {backupStatus.message}
+                      </motion.div>
                     )}
                   </div>
 
@@ -3805,6 +4467,33 @@ export default function App() {
                           />
                         </div>
                       </div>
+
+                      {/* Batas G-Start Trigger Slider */}
+                      <div className="flex flex-col gap-3 p-4 bg-gray-950/50 border border-gray-800 rounded-2xl">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Zap className="w-4 h-4 text-violet-400" />
+                            <span className="text-xs font-bold text-white uppercase italic">BATAS G-START</span>
+                          </div>
+                          <span className="text-xs font-black font-mono text-violet-400">
+                            {((systemConfig.launchGThreshold !== undefined && systemConfig.launchGThreshold !== null) ? systemConfig.launchGThreshold : 2.0).toFixed(1)}G
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="3.0"
+                          step="0.1"
+                          value={(systemConfig.launchGThreshold !== undefined && systemConfig.launchGThreshold !== null) ? systemConfig.launchGThreshold : 2.0}
+                          onChange={(e) => updateSystemConfigProperty("launchGThreshold", parseFloat(e.target.value))}
+                          className="w-full h-1 bg-gray-850 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                        />
+                        <div className="flex justify-between items-center text-[9px] text-gray-500 font-bold uppercase tracking-tight">
+                          <span>SENSITIF (0.5G)</span>
+                          <span>STANDAR (2.0G)</span>
+                          <span>MAKSIMAL (3.0G)</span>
+                        </div>
+                      </div>
                     </div>
                   </section>
 
@@ -4167,7 +4856,22 @@ export default function App() {
                                   />
                                 </div>
                              </div>
-                             <div className="bg-black/40 p-4 rounded-xl border border-gray-800">
+                             <div className="bg-black/40 p-4 rounded-xl border border-gray-800 flex items-start gap-3 mb-1">
+                                <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-400 mt-0.5">
+                                  <Cpu className="w-4 h-4 animate-pulse" />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black text-white uppercase italic tracking-wider">SYSTEM GPS WATCHDOG</span>
+                                    <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[9px] font-black italic tracking-widest uppercase">OTOMATIS</span>
+                                  </div>
+                                  <p className="text-[9px] text-gray-400 leading-snug mt-1 uppercase font-bold">
+                                    Sistem memulihkan sensor macet secara mandiri. Toleransi: <span className="text-violet-400 font-mono">{(fusedSpeedRef.current > 40) ? "4.0" : "7.0"} DETIK</span> (Menyesuaikan kecepatan berkendara).
+                                  </p>
+                                </div>
+                             </div>
+                             
+                             <div className="hidden bg-black/40 p-4 rounded-xl border border-gray-800">
                                 <div className="flex items-center justify-between mb-2">
                                   <label className="text-[10px] font-bold text-gray-400">GPS Watchdog (ms)</label>
                                   <span className="text-[10px] text-violet-400 font-mono">{systemConfig.gpsWatchdogSpeed}ms</span>
@@ -4552,6 +5256,19 @@ export default function App() {
                                         className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-white transition-all border border-amber-500/20 active:scale-95"
                                       >
                                         <Smartphone className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    {isOwner && u.username !== currentUser?.username && (u.role !== "owner" || isMainOwner) && (
+                                      <button
+                                        onClick={() => {
+                                          requireConfirm("Force Logout", `Paksa logout ${u.username}? Sesi mereka akan dihentikan secara realtime.`, () => {
+                                            handleForceLogoutUser(u.username);
+                                          });
+                                        }}
+                                        title="Force Logout"
+                                        className="p-1.5 rounded-lg bg-orange-500/10 hover:bg-orange-600 text-orange-500 hover:text-white transition-all border border-orange-500/20 active:scale-95"
+                                      >
+                                        <LogOut className="w-3 h-3" />
                                       </button>
                                     )}
                                     {(isAdminOrOwner) && (u.role !== "owner" || isMainOwner) && (
@@ -5078,6 +5795,7 @@ interface DashboardViewProps {
   systemStats: any;
   isAdminOrOwner: boolean;
   currentUser: User | null;
+  handleAccountExpiration?: () => Promise<void>;
 }
 
 const getBlurClasses = (lowFX: boolean) => ({
@@ -5562,7 +6280,8 @@ const DashboardView = React.memo(({
   isTouchLocked, setIsTouchLocked,
   gForce, peakG, gpsAltitude, gpsHeading, isGpsLocked, 
   formatTime, formatDistance, navigateView, systemConfig,
-  fastestRun, systemStats, isAdminOrOwner, currentUser
+  fastestRun, systemStats, isAdminOrOwner, currentUser,
+  handleAccountExpiration
 }: DashboardViewProps) => {
   const { lowFX } = systemConfig;
   const { blurClass } = getBlurClasses(lowFX);
@@ -5591,7 +6310,9 @@ const DashboardView = React.memo(({
       
       if (remaining <= 0) {
         setRemainingTrialTime(0);
-        await handleAccountExpiration();
+        if (handleAccountExpiration) {
+          await handleAccountExpiration();
+        }
         return;
       }
       
@@ -5640,7 +6361,7 @@ const DashboardView = React.memo(({
                 initial={{ scale: 0.95, opacity: 0.9 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ duration: 0.15 }}
-                className="text-[10rem] font-black italic tracking-tighter tabular-nums leading-none drop-shadow-[0_0_30px_rgba(139,92,246,0.35)]"
+                className="text-[10rem] font-black italic tracking-tighter tabular-nums leading-none drop-shadow-[0_0_30px_rgba(139,92,246,0.35)] text-white"
               >
                 {Math.round(currentSpeed)}
               </motion.div>
@@ -5653,6 +6374,23 @@ const DashboardView = React.memo(({
               KPH
             </div>
           </div>
+
+          {isLive && !isActive && (
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: [0.95, 1, 0.95], opacity: [0.85, 1, 0.85] }}
+              transition={{ repeat: Infinity, duration: 2.0, ease: "easeInOut" }}
+              className="mt-4 px-4 py-2.5 bg-violet-500/10 border border-violet-500/20 rounded-2xl flex flex-col items-center justify-center gap-1 max-w-[280px]"
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                <span className="text-[9px] font-black text-yellow-400 tracking-wider uppercase italic">G-START SENSOR ACTIVE</span>
+              </div>
+              <span className="text-[10px] text-gray-300 font-black italic tracking-tight uppercase leading-tight text-center">
+                TARIK THROTTLE PEAK G &gt; {((systemConfig.launchGThreshold !== undefined && systemConfig.launchGThreshold !== null) ? systemConfig.launchGThreshold : 2.0).toFixed(1)}G UTK START OTOMATIS
+              </span>
+            </motion.div>
+          )}
 
           {/* Quick Stats in Hero */}
           <div className="mt-8 grid grid-cols-2 gap-12 w-full max-w-xs border-t border-white/5 pt-8">

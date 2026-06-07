@@ -9,6 +9,7 @@
         "password": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "customer"] },
         "boundDeviceId": { "type": "string" },
+        "forceLogout": { "type": "boolean" },
         "isTrial": { "type": "boolean" },
         "trialUntil": { "type": "timestamp" }
       },
