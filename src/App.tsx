@@ -2271,6 +2271,7 @@ export default function App() {
 
   const startPointRef = useRef<GPSPoint | null>(null);
   const lastPointRef = useRef<GPSPoint | null>(null);
+  const lastReceivedGpsPointRef = useRef<GPSPoint | null>(null);
   const timerRef = useRef<number | null>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const launchTriggerRef = useRef<(() => void) | null>(null);
@@ -2714,6 +2715,60 @@ export default function App() {
         // Reset watchdog upon receiving valid data
         if (isLiveRef.current) startWatchdog();
 
+        // --- SPEED CALCULATOR WITH SPATIAL DELTA FALLBACK ---
+        let resolvedSpeed = speed;
+        if (accuracy !== null && accuracy <= 55) {
+          if (lastReceivedGpsPointRef.current) {
+            const prevPoint = lastReceivedGpsPointRef.current;
+            const dtSeconds = (position.timestamp - prevPoint.timestamp) / 1000;
+            
+            if (dtSeconds > 0.2 && dtSeconds < 15.0) {
+              const distMeters = calculateDistance(
+                { lat: prevPoint.lat, lng: prevPoint.lng },
+                { lat: latitude, lng: longitude }
+              );
+              const computedSpeedMs = distMeters / dtSeconds;
+              const computedKmh = computedSpeedMs * 3.6;
+              
+              // Fallback criteria:
+              // 1. Native speed is not reported (null or undefined)
+              // 2. Or native speed is zero but computed speed is significant (> 1.2 m/s, i.e., > 4.3 km/h),
+              //    indicating the device is moving but OS speed value is stuck at zero or throttled.
+              // We also cap computed speed at a realistic 180 km/h to filter out massive GPS teleport leaps.
+              if (
+                resolvedSpeed === null || 
+                resolvedSpeed === undefined || 
+                (resolvedSpeed < 0.1 && computedSpeedMs > 1.2 && computedKmh < 180.0)
+              ) {
+                // Physics rate-of-change limiter: smooth out erratic GPS noise when calculating speed.
+                // Motorcycle maximum acceleration is around 15 m/s² (54 km/h per second).
+                let filteredComputed = computedSpeedMs;
+                if (prevPoint.speed !== undefined) {
+                  const prevSpeedMs = prevPoint.speed;
+                  const maxAllowedChangeMs = 15.0 * dtSeconds;
+                  const speedDiff = computedSpeedMs - prevSpeedMs;
+                  
+                  if (Math.abs(speedDiff) > maxAllowedChangeMs) {
+                    filteredComputed = prevSpeedMs + Math.sign(speedDiff) * maxAllowedChangeMs;
+                  }
+                }
+                
+                resolvedSpeed = filteredComputed;
+                console.log(`[SPEED FALLBACK] Resolved speed using GPS displacement: ${(filteredComputed * 3.6).toFixed(1)} km/h. Accuracy: ${accuracy.toFixed(1)}m. dt: ${dtSeconds.toFixed(2)}s`);
+              }
+            }
+          }
+          
+          // Save current position for next iteration
+          lastReceivedGpsPointRef.current = {
+            lat: latitude,
+            lng: longitude,
+            timestamp: position.timestamp,
+            speed: resolvedSpeed !== null ? resolvedSpeed : undefined,
+            accuracy: accuracy
+          };
+        }
+
         // Calculate Hz and Precision Auto-Calibration
         if (lastGpsTimestampRef.current) {
           const diff = position.timestamp - lastGpsTimestampRef.current;
@@ -2725,7 +2780,7 @@ export default function App() {
               sessionHzValuesRef.current.push(hz);
             }
             
-            const rawSpeedKmr = (speed !== null && speed > 0.2 ? speed : 0) * 3.6;
+            const rawSpeedKmr = (resolvedSpeed !== null && resolvedSpeed > 0.2 ? resolvedSpeed : 0) * 3.6;
             
             // Continuous Adaptive Vector Learning
             const dv = rawSpeedKmr - lastGpsSpeedRef.current;
@@ -2773,7 +2828,7 @@ export default function App() {
         setIsGpsLocked(locked);
 
         // --- SPEED UI UPDATES ---
-        const filteredSpeed = speed !== null && speed > 0.2 ? speed : 0;
+        const filteredSpeed = resolvedSpeed !== null && resolvedSpeed > 0.2 ? resolvedSpeed : 0;
         
         lastGpsSpeedRef.current = filteredSpeed;
         
@@ -2860,14 +2915,14 @@ export default function App() {
           lastTelemetryUpdateRef.current = now;
         }
 
-        // 3. Noise Filtering: If signal is extremely poor (> 30m), we ignore this point for distance calculation
-        if (accuracy > 30) return;
+        // 3. Noise Filtering: If signal is extremely poor (> 55m), we ignore this point for distance calculation
+        if (accuracy > 55) return;
 
         const currentPoint: GPSPoint = {
           lat: latitude,
           lng: longitude,
           timestamp: position.timestamp,
-          speed: speed,
+          speed: resolvedSpeed,
           accuracy: accuracy,
         };
 
