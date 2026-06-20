@@ -266,7 +266,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     calibrate: "Kalibrasi",
     warningTitle: "PERHATIAN",
     warningMessage:
-      "Gunakan RACE METER pada saat cerah tidak tertutup awan. Rekomendasi pada saat malam hari agar sinyal GPS lebih stabil.",
+      "Gunakan RACE METER di area terbuka dengan pemandangan langit bersih. PENTING: Jangan matikan layar HP atau menutup aplikasi agar pelacakan GPS & Akselerometer tidak terhenti. Pasang HP di stang/mount motor Anda untuk akurasi sensor fusion maksimal menyamai RaceBox!",
     safetyNotice: "PEMBERITAHUAN KESELAMATAN",
     disclaimer: "Aplikasi ini dirancang untuk penggunaan di lintasan tertutup. Jangan gunakan di jalan umum. Penggunaan di jalan raya dapat membahayakan diri sendiri dan orang lain. Data bergantung pada akurasi GPS perangkat Anda.",
     iAgree: "SAYA MENGERTI & SETUJU",
@@ -354,7 +354,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     calibrate: "Calibrate",
     warningTitle: "ATTENTION",
     warningMessage:
-      "Use RACE METER when it is clear and not cloudy, recommended at night",
+      "Use RACE METER in an open area with a clear sky view. IMPORTANT: Do NOT turn off your phone screen or close the app during a run, as the mobile OS will freeze GPS/accelerometer tracking. Mount your phone on the handlebar for maximum sensor fusion accuracy matching RaceBox.",
     next: "Next",
     waitingSignal: "Waiting for Precise Signal...",
     signalReady: "GPS Locked (Precise)",
@@ -809,7 +809,7 @@ export default function App() {
     startDelaySeconds: 0,
     startDelayEnabled: false,
     lowFX: false,
-    launchGThreshold: 2.0
+    launchGThreshold: 0.35
   });
 
   // --- Navigation with History Support (for APK/Back Button) ---
@@ -2344,10 +2344,10 @@ export default function App() {
   const accelIntegrationRef = useRef<number>(0);
   const lastGpsSpeedRef = useRef<number>(0);
   
-  // Vector Auto-Calibration
-  const forwardVectorRef = useRef<{x: number, y: number, z: number} | null>(null);
+  // Vector Auto-Calibration (Starts with standard portrait tilted handlebar-mount default)
+  const forwardVectorRef = useRef<{x: number, y: number, z: number} | null>({ x: 0, y: 0.5, z: -0.866 });
   const smoothedAccelRef = useRef<{x: number, y: number, z: number}>({x: 0, y: 0, z: 0});
-  const calibrationConfidenceRef = useRef<number>(0);
+  const calibrationConfidenceRef = useRef<number>(30);
   const projectedAccelHistoryRef = useRef<number[]>([]);
 
   // Save changes
@@ -2527,9 +2527,20 @@ export default function App() {
           ? projectedAccelHistoryRef.current.reduce((a, b) => a + b, 0) / projectedAccelHistoryRef.current.length 
           : unbiasedAccel;
 
+        // Smooth forward acceleration launch detector:
+        // By examining the windowed-averaged forward acceleration (which averages out symmetric high-frequency vibrations),
+        // we can detect a genuine physical takeoff of the motorcycle while in standby (isLiveRef.current === true && !isActiveRef.current).
+        // Since launchGThreshold defaults to 0.35, we trigger when windowAvgAccel exceeds 0.18G which marks a definitive rollout thrust vector!
+        if (isLiveRef.current && !isActiveRef.current && windowAvgAccel > 0.18) {
+          console.log(`🚀 [LAUNCH] High-precision filtered forward sensor launch triggered: ${windowAvgAccel.toFixed(2)}G`);
+          launchTriggerRef.current?.();
+          return;
+        }
+
         // Deadzone to prevent integration creep when stationary or minor vibration noise.
-        // During hard throttle, the deadzone goes minimal for extreme sensitivity. When stationary, it stays high to fully reject shaking.
-        const deadzone = isDynamic ? 0.12 : 0.40;
+        // During active racing, deadzone goes to 0.05G for ultimate precision.
+        // During casual riding, deadzone is 0.12G. When stationary, it stays high (0.40G) to fully reject shaking.
+        const deadzone = isActiveRef.current ? 0.05 : isDynamic ? 0.12 : 0.40;
         const effectiveAccel = Math.abs(windowAvgAccel) < deadzone ? 0 : windowAvgAccel;
 
         // Convert dt from milliseconds to seconds just in case it was too big. Cap it at 0.1s to prevent huge jumps.
@@ -2946,8 +2957,8 @@ export default function App() {
           return nextMax;
         });
 
-        // Auto-start logic: tighter threshold to prevent jitter starts
-        if (!isActiveRef.current && isLiveRef.current && (performance.now() - isLiveStartedAtRef.current > 3000) && speedKmr > 15.0) {
+        // Auto-start fallback logic: triggers immediately when speed exceeds 2.0 km/h to catch slow rollouts
+        if (!isActiveRef.current && isLiveRef.current && (performance.now() - isLiveStartedAtRef.current > 1500) && speedKmr > 2.0) {
           setIsActive(true);
           isActiveRef.current = true;
           setIsTouchLocked(true); // Auto-lock touch on start
@@ -4531,22 +4542,22 @@ export default function App() {
                             <span className="text-xs font-bold text-white uppercase italic">BATAS G-START</span>
                           </div>
                           <span className="text-xs font-black font-mono text-violet-400">
-                            {((systemConfig.launchGThreshold !== undefined && systemConfig.launchGThreshold !== null) ? systemConfig.launchGThreshold : 2.0).toFixed(1)}G
+                            {((systemConfig.launchGThreshold !== undefined && systemConfig.launchGThreshold !== null) ? systemConfig.launchGThreshold : 0.35).toFixed(2)}G
                           </span>
                         </div>
                         <input
                           type="range"
-                          min="0.5"
-                          max="3.0"
-                          step="0.1"
-                          value={(systemConfig.launchGThreshold !== undefined && systemConfig.launchGThreshold !== null) ? systemConfig.launchGThreshold : 2.0}
+                          min="0.10"
+                          max="1.50"
+                          step="0.05"
+                          value={(systemConfig.launchGThreshold !== undefined && systemConfig.launchGThreshold !== null) ? systemConfig.launchGThreshold : 0.35}
                           onChange={(e) => updateSystemConfigProperty("launchGThreshold", parseFloat(e.target.value))}
                           className="w-full h-1 bg-gray-850 rounded-lg appearance-none cursor-pointer accent-violet-600"
                         />
                         <div className="flex justify-between items-center text-[9px] text-gray-500 font-bold uppercase tracking-tight">
-                          <span>SENSITIF (0.5G)</span>
-                          <span>STANDAR (2.0G)</span>
-                          <span>MAKSIMAL (3.0G)</span>
+                          <span>SENSITIF (0.10G)</span>
+                          <span>STANDAR (0.35G)</span>
+                          <span>KASAR (1.20G)</span>
                         </div>
                       </div>
                     </div>
